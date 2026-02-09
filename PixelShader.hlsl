@@ -12,7 +12,9 @@ struct VertexToPixel
 	//  |    |                |
 	//  v    v                v
 	float4 screenPosition	: SV_POSITION;
-	float4 color			: COLOR;
+	float2 uv               : TEXCOORD;
+	float3 normal           : NORMAL;
+	float3 tangent          : TANGENT;
 };
 
 // --------------------------------------------------------

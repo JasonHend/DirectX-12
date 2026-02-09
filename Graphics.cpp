@@ -21,6 +21,15 @@ namespace Graphics
 
 		D3D_FEATURE_LEVEL featureLevel{};
 		unsigned int currentBackBufferIndex = 0;
+
+		// Descriptor heap management
+		SIZE_T cbvSrvDescriptorHeapIncrements = 0;
+		unsigned int cbvDescriptorOffset = 0;
+
+		// CB upload heap management
+		UINT64 cbUploadHeapSizeInBytes = 0;
+		UINT64 cbUploadHeapOffsetInBytes = 0;
+		void* cbUploadHeapStartAddress = 0;
 	}
 }
 
@@ -200,6 +209,55 @@ HRESULT Graphics::Initialize(unsigned int windowWidth, unsigned int windowHeight
 
 	// Lastly, create the initial back and depth buffers and descriptors for them
 	ResizeBuffers(windowWidth, windowHeight);
+
+	// Descriptor heap creation
+	{
+
+	}
+
+	// Create upload heaps for constant buffers
+	{
+		// Initialize size of the upload heap
+		cbUploadHeapSizeInBytes = (UINT64)MaxConstantBuffers * 256;
+
+		// Ensure offset is reset on initialization
+		cbUploadHeapOffsetInBytes = 0;
+
+		// Fill out heap properties
+		D3D12_HEAP_PROPERTIES heapProps = {};
+		heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		heapProps.CreationNodeMask = 1;
+		heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+		heapProps.VisibleNodeMask = 1;
+
+		// Resource description for the heap
+		D3D12_RESOURCE_DESC resDesc = {};
+		resDesc.Alignment = 0;
+		resDesc.DepthOrArraySize = 1;
+		resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		resDesc.Format = DXGI_FORMAT_UNKNOWN;
+		resDesc.Height = 1;
+		resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		resDesc.MipLevels = 1;
+		resDesc.SampleDesc.Count = 1;
+		resDesc.SampleDesc.Quality = 0;
+		resDesc.Width = cbUploadHeapSizeInBytes;
+
+		// Created a committed resource for the heap
+		Device->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&resDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			0,
+			IID_PPV_ARGS(CBUploadHeap.GetAddressOf()));
+
+		// Map the upload heap
+		D3D12_RANGE range{ 0, 0 };
+		CBUploadHeap->Map(0, &range, &cbUploadHeapStartAddress);
+	}
 
 	// Wait for the GPU before we proceed
 	WaitForGPU();
