@@ -4,6 +4,7 @@
 #include "Input.h"
 #include "PathHelpers.h"
 #include "Window.h"
+#include "BufferStructs.h"
 
 #include <DirectXMath.h>
 
@@ -20,8 +21,21 @@ using namespace DirectX;
 // --------------------------------------------------------
 Game::Game()
 {
+	// Create the main camera
+	XMFLOAT3 initialPos = XMFLOAT3(0, 0, -5);
+	XMFLOAT3 startOrientation = XMFLOAT3(0, 0, 0);
+	mainCamera = std::make_shared<Camera>(
+		Window::AspectRatio(),
+		initialPos,
+		startOrientation,
+		120,
+		0.1,
+		1000,
+		10,
+		5);
+
 	CreateRootSigAndPipelineState();
-	CreateGeometry();
+	//CreateGeometry();
 }
 
 
@@ -63,9 +77,9 @@ void Game::CreateGeometry()
 	//    since we're describing the triangle in terms of the window itself
 	Vertex vertices[] =
 	{
-		{ XMFLOAT3(+0.0f, +0.5f, +0.0f), red },
-		{ XMFLOAT3(+0.5f, -0.5f, +0.0f), blue },
-		{ XMFLOAT3(-0.5f, -0.5f, +0.0f), green },
+		{ XMFLOAT3(+0.0f, +0.5f, +0.0f), XMFLOAT2(0, 0)},
+		{ XMFLOAT3(+0.5f, -0.5f, +0.0f), XMFLOAT2(0, 0)},
+		{ XMFLOAT3(-0.5f, -0.5f, +0.0f), XMFLOAT2(0, 0)},
 	};
 
 	// Set up indices, which tell us which vertices to use and in which order
@@ -270,6 +284,15 @@ void Game::OnResize()
 		scissorRect.right = Window::Width();
 		scissorRect.bottom = Window::Height();
 	}
+
+	// Update any objects that would require it
+	{
+		// Calculate aspect ratio
+		float aspectRatio = viewport.Width / viewport.Height;
+
+		// Cameras
+		mainCamera->UpdateProjectionMatrix(aspectRatio);
+	}
 }
 
 
@@ -278,6 +301,9 @@ void Game::OnResize()
 // --------------------------------------------------------
 void Game::Update(float deltaTime, float totalTime)
 {
+	// Update main camera
+	mainCamera->Update(deltaTime);
+
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
 		Window::Quit();
@@ -330,11 +356,35 @@ void Game::Draw(float deltaTime, float totalTime)
 			1, &Graphics::RTVHandles[Graphics::SwapChainIndex()], true, &Graphics::DSVHandle);
 		Graphics::CommandList->RSSetViewports(1, &viewport);
 		Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
-		Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
-		Graphics::CommandList->IASetIndexBuffer(&ibView);
 		Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		// Draw
-		Graphics::CommandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+		
+
+		// Entity rendering loop
+		for (auto& e : entities)
+		{
+			// Fill out struct to send to the vertex shader
+			VertexShaderExternalData cbData = {};
+			cbData.m4World = e->GetTransform()->GetWorldMatrix();
+			cbData.m4View = mainCamera->GetViewMatrix();
+			cbData.m4Projection = mainCamera->GetProjectionMatrix();
+
+			// Copy the struct data over to the gpu
+			D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&cbData, sizeof(cbData));
+			
+			// Utilize the command list to set the root descriptor table with the handle
+			Graphics::CommandList->SetGraphicsRootDescriptorTable(0, gpuHandle);
+
+			// Grab both vertex and index buffer views from the mesh
+			D3D12_VERTEX_BUFFER_VIEW vbView = e->GetMesh()->GetVertexBufferView();
+			D3D12_INDEX_BUFFER_VIEW ibView = e->GetMesh()->GetIndexBufferView();
+
+			// Set both buffers
+			Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
+			Graphics::CommandList->IASetIndexBuffer(&ibView);
+
+			// Finally call draw indexed
+			Graphics::CommandList->DrawIndexedInstanced(e->GetMesh()->GetIndexCount(), 1, 0, 0, 0);
+		}
 	}
 
 	// Present

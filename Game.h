@@ -2,6 +2,9 @@
 
 #include <d3d12.h>
 #include <wrl/client.h>
+#include <vector>
+#include "Camera.h"
+#include "GameEntity.h"
 
 class Game
 {
@@ -42,5 +45,11 @@ private:
 	// Other graphics data
 	D3D12_VIEWPORT viewport{};
 	D3D12_RECT scissorRect{};
+
+	// Camera
+	std::shared_ptr<Camera> mainCamera;
+
+	// Entities
+	std::vector<std::shared_ptr<GameEntity>> entities;
 };
 

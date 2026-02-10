@@ -16,7 +16,6 @@ public:
 	D3D12_INDEX_BUFFER_VIEW GetIndexBufferView();
 	int GetIndexCount();
 	int GetVertexCount();
-	void Draw();
 	~Mesh();
 
 private:
