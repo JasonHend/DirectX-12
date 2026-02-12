@@ -19,13 +19,13 @@ Mesh::Mesh(Vertex* vertices, unsigned int* indices, size_t vertexCount, size_t i
 Mesh::Mesh(const std::wstring& objFile)
 {
 	// Author: Chris Cascioli
-// Purpose: Basic .OBJ 3D model loading, supporting positions, uvs and normals
-// 
-// - You are allowed to directly copy/paste this into your code base
-//   for assignments, given that you clearly cite that this is not
-//   code of your own design.
+	// Purpose: Basic .OBJ 3D model loading, supporting positions, uvs and normals
+	// 
+	// - You are allowed to directly copy/paste this into your code base
+	//   for assignments, given that you clearly cite that this is not
+	//   code of your own design.
 
-// File input object
+	// File input object
 	std::ifstream obj(objFile);
 
 	// Check for successful open

@@ -222,6 +222,7 @@ HRESULT Graphics::Initialize(unsigned int windowWidth, unsigned int windowHeight
 		heapDesc.NumDescriptors = MaxConstantBuffers;
 		heapDesc.NodeMask = 0;
 
+		// Create the descriptor heap
 		Device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(CBVSRVDescriptorHeap.GetAddressOf()));
 		
 		// Go to beginning of heap

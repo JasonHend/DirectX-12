@@ -9,7 +9,7 @@ class GameEntity
 {
 public:
 	// Constructors
-	GameEntity(Mesh* mesh);
+	GameEntity(std::shared_ptr<Mesh> mesh);
 
 	// Getters
 	std::shared_ptr<Mesh> GetMesh();

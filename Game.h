@@ -5,6 +5,7 @@
 #include <vector>
 #include "Camera.h"
 #include "GameEntity.h"
+#include "Mesh.h"
 
 class Game
 {

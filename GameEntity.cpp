@@ -4,7 +4,7 @@
 /// Takes in a mesh parameter and creates a game object
 /// </summary>
 /// <param name="mesh">Mesh object that will be used for the entity</param>
-GameEntity::GameEntity(Mesh* mesh)
+GameEntity::GameEntity(std::shared_ptr<Mesh> mesh)
     : mesh(mesh)
 {
     transform = std::make_shared<Transform>();

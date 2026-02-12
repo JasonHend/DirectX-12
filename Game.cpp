@@ -22,20 +22,20 @@ using namespace DirectX;
 Game::Game()
 {
 	// Create the main camera
-	XMFLOAT3 initialPos = XMFLOAT3(0, 0, -5);
-	XMFLOAT3 startOrientation = XMFLOAT3(0, 0, 0);
+	XMFLOAT3 initialPos = XMFLOAT3(0.0f, 0.0f, -15.0f);
+	XMFLOAT3 startOrientation = XMFLOAT3(0.0f, 0.0f, 0.0f);
 	mainCamera = std::make_shared<Camera>(
 		Window::AspectRatio(),
 		initialPos,
 		startOrientation,
-		120,
-		0.1,
-		1000,
-		10,
-		5);
+		120.0f,
+		0.1f,
+		1000.0f,
+		20.0f,
+		10.0f);
 
 	CreateRootSigAndPipelineState();
-	//CreateGeometry();
+	CreateGeometry();
 }
 
 
@@ -57,48 +57,27 @@ Game::~Game()
 // --------------------------------------------------------
 void Game::CreateGeometry()
 {
-	// Create some temporary variables to represent colors
-	// - Not necessary, just makes things more readable
-	XMFLOAT4 red = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-	XMFLOAT4 green = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
-	XMFLOAT4 blue = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
+	// Load in primative mesh objects
+	std::shared_ptr<Mesh> cube = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/cube.obj").c_str());
+	std::shared_ptr<Mesh> cylinder = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/cylinder.obj").c_str());
+	std::shared_ptr<Mesh> helix = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/helix.obj").c_str());
+	std::shared_ptr<Mesh> sphere = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/sphere.obj").c_str());
+	std::shared_ptr<Mesh> torus = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/torus.obj").c_str());
+	std::shared_ptr<Mesh> quad = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/quad.obj").c_str());
+	std::shared_ptr<Mesh> quad2Side = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/quad_double_sided.obj").c_str());
 
-	// Set up the vertices of the triangle we would like to draw
-	// - We're going to copy this array, exactly as it exists in CPU memory
-	//    over to a Direct3D-controlled data structure on the GPU (the vertex buffer)
-	// - Note: Since we don't have a camera or really any concept of
-	//    a "3d world" yet, we're simply describing positions within the
-	//    bounds of how the rasterizer sees our screen: [-1 to +1] on X and Y
-	// - This means (0,0) is at the very center of the screen.
-	// - These are known as "Normalized Device Coordinates" or "Homogeneous 
-	//    Screen Coords", which are ways to describe a position without
-	//    knowing the exact size (in pixels) of the image/window/etc.  
-	// - Long story short: Resizing the window also resizes the triangle,
-	//    since we're describing the triangle in terms of the window itself
-	Vertex vertices[] =
-	{
-		{ XMFLOAT3(+0.0f, +0.5f, +0.0f), XMFLOAT2(0, 0)},
-		{ XMFLOAT3(+0.5f, -0.5f, +0.0f), XMFLOAT2(0, 0)},
-		{ XMFLOAT3(-0.5f, -0.5f, +0.0f), XMFLOAT2(0, 0)},
-	};
+	// Create entities
+	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere);
+	std::shared_ptr<GameEntity> helixEntity = std::make_shared<GameEntity>(helix);
+	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus);
 
-	// Set up indices, which tell us which vertices to use and in which order
-	// - This is redundant for just 3 vertices, but will be more useful later
-	// - Indices are technically not required if the vertices are in the buffer 
-	//    in the correct order and each one will be used exactly once
-	// - But just to see how it's done...
-	unsigned int indices[] = { 0, 1, 2 };
+	sphereEntity->GetTransform()->SetPosition(-3.0f, 0.0f, 0.0f);
+	helixEntity->GetTransform()->SetPosition(0.0f, 0.0f, 0.0f);
+	torusEntity->GetTransform()->SetPosition(3.0f, 0.0f, 0.0f);
 
-	// Create the two buffers
-	vertexBuffer = Graphics::CreateStaticBuffer(sizeof(Vertex), ARRAYSIZE(vertices), vertices);
-	indexBuffer = Graphics::CreateStaticBuffer(sizeof(unsigned int), ARRAYSIZE(indices), indices);
-	// Set up the views
-	vbView.StrideInBytes = sizeof(Vertex);
-	vbView.SizeInBytes = sizeof(Vertex) * ARRAYSIZE(vertices);
-	vbView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-	ibView.Format = DXGI_FORMAT_R32_UINT;
-	ibView.SizeInBytes = sizeof(unsigned int) * ARRAYSIZE(indices);
-	ibView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+	entities.push_back(sphereEntity);
+	entities.push_back(helixEntity);
+	entities.push_back(torusEntity);
 }
 
 
@@ -304,6 +283,14 @@ void Game::Update(float deltaTime, float totalTime)
 	// Update main camera
 	mainCamera->Update(deltaTime);
 
+	// Update the transforms of some entities
+	// Sphere will move up and down
+	entities[0]->GetTransform()->MoveRelative(0.0f, sin(deltaTime), 0.0f);
+
+	// Rotate all entites
+	for (auto e : entities)
+		e->GetTransform()->Rotate(deltaTime / 2.0f, deltaTime, 0.0f);
+
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
 		Window::Quit();
@@ -357,6 +344,9 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::CommandList->RSSetViewports(1, &viewport);
 		Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
 		Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		// Set up descriptor heap
+		Graphics::CommandList->SetDescriptorHeaps(1, Graphics::CBVSRVDescriptorHeap.GetAddressOf());
 		
 
 		// Entity rendering loop
