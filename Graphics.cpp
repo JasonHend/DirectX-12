@@ -1,5 +1,8 @@
 #include "Graphics.h"
+#include "WICTextureLoader.h"
+#include "ResourceUploadBatch.h"
 #include <dxgi1_6.h>
+#include <vector>
 
 // Tell the drivers to use high-performance GPU in multi-GPU systems (like laptops)
 extern "C"
@@ -30,6 +33,10 @@ namespace Graphics
 		UINT64 cbUploadHeapSizeInBytes = 0;
 		UINT64 cbUploadHeapOffsetInBytes = 0;
 		void* cbUploadHeapStartAddress = 0;
+
+		// Texture and SRV variables
+		unsigned int srvDescriptorOffset = MaxConstantBuffers;
+		std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> textures;
 	}
 }
 
@@ -219,7 +226,7 @@ HRESULT Graphics::Initialize(unsigned int windowWidth, unsigned int windowHeight
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		heapDesc.NumDescriptors = MaxConstantBuffers;
+		heapDesc.NumDescriptors = MaxConstantBuffers + MaxTextureDescriptors;
 		heapDesc.NodeMask = 0;
 
 		// Create the descriptor heap
@@ -566,6 +573,45 @@ D3D12_GPU_DESCRIPTOR_HANDLE Graphics::FillNextConstantBufferAndGetGPUDescriptorH
 		// so it can be set as part of the root signature during drawing
 		return gpuHandle;
 	}
+}
+
+
+/// <summary>
+/// Creates an SRV for a texture loaded from a file
+/// </summary>
+/// <param name="file">File of texture</param>
+/// <param name="generateMips"></param>
+/// <returns>Index of the specific SRV</returns>
+unsigned int Graphics::LoadTexture(const wchar_t* file, bool generateMips)
+{
+	// Helper functino from DXTK for uploading a resource to the GPU
+	DirectX::ResourceUploadBatch upload(Device.Get());
+	upload.Begin();
+
+	// Attempt to create the texture
+	Microsoft::WRL::ComPtr<ID3D12Resource> texture;
+	DirectX::CreateWICTextureFromFile(
+		Device.Get(), upload, file, texture.GetAddressOf(), generateMips);
+
+	// Perform the upload and wait for it to finish before moving on
+	auto finish = upload.End(CommandQueue.Get());
+	finish.wait();
+
+	// Now that we have the texture, save the ComPtr so it doesn't get cleaned up
+	textures.push_back(texture);
+
+	// Save the index of this descriptor and increment the overall offset
+	unsigned int srvIndex = srvDescriptorOffset;
+	srvDescriptorOffset++;
+
+	// Create the SRV in the descriptor heap at the appropriate offset (CPU Descriptor Handle)
+	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = CBVSRVDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	srvHandle.ptr += srvIndex * Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	Device->CreateShaderResourceView(texture.Get(), 0, srvHandle);
+	
+
+	// Send back the index of the descriptor
+	return srvIndex;
 }
 
 

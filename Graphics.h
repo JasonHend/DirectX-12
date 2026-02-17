@@ -13,6 +13,7 @@ namespace Graphics
 {
 	// --- CONSTANTS ---
 	const unsigned int NumBackBuffers = 2;
+	const unsigned int MaxTextureDescriptors = 100; // Max amount of SRVs
 
 	// --- GLOBAL VARS ---
 
@@ -70,6 +71,8 @@ namespace Graphics
 	D3D12_GPU_DESCRIPTOR_HANDLE FillNextConstantBufferAndGetGPUDescriptorHandle(
 		void* data,
 		unsigned int dataSizeInBytes);
+	
+	unsigned int LoadTexture(const wchar_t* file, bool generateMips = true);
 
 	// Command list and synchronization
 	void ResetAllocatorAndCommandList();
