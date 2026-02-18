@@ -140,13 +140,36 @@ void Game::CreateRootSigAndPipelineState()
 		rootParam.DescriptorTable.NumDescriptorRanges = 1;
 		rootParam.DescriptorTable.pDescriptorRanges = &cbvTable;
 
-		// Describe and serialize the root signature
+		// New root parameter for pixel shader visibility
+		D3D12_ROOT_PARAMETER psRootParam = {};
+		psRootParam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		psRootParam.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		psRootParam.DescriptorTable.NumDescriptorRanges = 1;
+		psRootParam.DescriptorTable.pDescriptorRanges = &cbvTable;
+
+		D3D12_ROOT_PARAMETER rootParams[] = { rootParam, psRootParam };
+
+		// Create a single static sampler (available to all pixel shaders)
+		D3D12_STATIC_SAMPLER_DESC anisoWrap = {};
+		anisoWrap.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.Filter = D3D12_FILTER_ANISOTROPIC;
+		anisoWrap.MaxAnisotropy = 16;
+		anisoWrap.MaxLOD = D3D12_FLOAT32_MAX;
+		anisoWrap.ShaderRegister = 0; // Means register(s0) in the shader
+		anisoWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		D3D12_STATIC_SAMPLER_DESC samplers[] = { anisoWrap };
+
+		// Describe the full root signature
 		D3D12_ROOT_SIGNATURE_DESC rootSig = {};
-		rootSig.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-		rootSig.NumParameters = 1;
-		rootSig.pParameters = &rootParam;
-		rootSig.NumStaticSamplers = 0;
-		rootSig.pStaticSamplers = 0;
+		rootSig.Flags = 
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+			D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
+		rootSig.NumParameters = ARRAYSIZE(rootParams);
+		rootSig.pParameters = rootParams;
+		rootSig.NumStaticSamplers = ARRAYSIZE(samplers);
+		rootSig.pStaticSamplers = samplers;
 		ID3DBlob* serializedRootSig = 0;
 		ID3DBlob* errors = 0;
 		D3D12SerializeRootSignature(
