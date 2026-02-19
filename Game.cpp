@@ -66,10 +66,27 @@ void Game::CreateGeometry()
 	std::shared_ptr<Mesh> quad = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/quad.obj").c_str());
 	std::shared_ptr<Mesh> quad2Side = std::make_shared<Mesh>(FixPath(L"../../Assets/Models/quad_double_sided.obj").c_str());
 
+	// Load in textures
+	unsigned int rockAlbedo = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/albedo.png").c_str());
+	unsigned int rockNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/normal.png").c_str());
+	unsigned int rockMetal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/metal.png").c_str());
+	unsigned int rockRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/roughness.png").c_str());
+
+	// Create Materials
+	std::shared_ptr<Material> rockMaterial = std::make_shared<Material>(
+		DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f),
+		DirectX::XMFLOAT2(1.0f, 1.0f),
+		DirectX::XMFLOAT2(0.0f, 0.0f),
+		pipelineState,
+		rockAlbedo,
+		rockNormal,
+		rockMetal,
+		rockRoughness);
+
 	// Create entities
-	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere);
-	std::shared_ptr<GameEntity> helixEntity = std::make_shared<GameEntity>(helix);
-	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus);
+	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere, rockMaterial);
+	std::shared_ptr<GameEntity> helixEntity = std::make_shared<GameEntity>(helix, rockMaterial);
+	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus, rockMaterial);
 
 	sphereEntity->GetTransform()->SetPosition(-3.0f, 0.0f, 0.0f);
 	helixEntity->GetTransform()->SetPosition(0.0f, 0.0f, 0.0f);
@@ -308,7 +325,7 @@ void Game::Update(float deltaTime, float totalTime)
 
 	// Update the transforms of some entities
 	// Sphere will move up and down
-	entities[0]->GetTransform()->MoveRelative(0.0f, sin(deltaTime), 0.0f);
+	entities[0]->GetTransform()->MoveRelative(0.0f, float(sin(deltaTime)), 0.0f);
 
 	// Rotate all entites
 	for (auto e : entities)
@@ -359,6 +376,8 @@ void Game::Draw(float deltaTime, float totalTime)
 	{
 		// Set overall pipeline state
 		Graphics::CommandList->SetPipelineState(pipelineState.Get());
+		// Set up descriptor heap
+		Graphics::CommandList->SetDescriptorHeaps(1, Graphics::CBVSRVDescriptorHeap.GetAddressOf());
 		// Root sig (must happen before root descriptor table)
 		Graphics::CommandList->SetGraphicsRootSignature(rootSignature.Get());
 		// Set up other commands for rendering
@@ -368,10 +387,6 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
 		Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		// Set up descriptor heap
-		Graphics::CommandList->SetDescriptorHeaps(1, Graphics::CBVSRVDescriptorHeap.GetAddressOf());
-		
-
 		// Entity rendering loop
 		for (auto& e : entities)
 		{
@@ -380,12 +395,31 @@ void Game::Draw(float deltaTime, float totalTime)
 			cbData.m4World = e->GetTransform()->GetWorldMatrix();
 			cbData.m4View = mainCamera->GetViewMatrix();
 			cbData.m4Projection = mainCamera->GetProjectionMatrix();
+			cbData.m4WorldInvTranspose = e->GetTransform()->GetWorldInverseTransposeMatrix();
 
 			// Copy the struct data over to the gpu
 			D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&cbData, sizeof(cbData));
 			
 			// Utilize the command list to set the root descriptor table with the handle
 			Graphics::CommandList->SetGraphicsRootDescriptorTable(0, gpuHandle);
+
+			// Grab material reference for filling out structs
+			std::shared_ptr<Material> material = e->GetMaterial();
+
+			// Fill out struct for pixel shader
+			PixelDataExternalData psData = {};
+			psData.albedo = material->GetAlbedo();
+			psData.normal = material->GetNormalMap();
+			psData.metal = material->GetMetalness();
+			psData.roughness = material->GetRoughness();
+			psData.uvScale = material->GetUVScale();
+			psData.uvOffset = material->GetUVOffset();
+
+			// Copy to GPU
+			gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&psData, sizeof(psData));
+
+			// Set root descriptor
+			Graphics::CommandList->SetGraphicsRootDescriptorTable(1, gpuHandle);
 
 			// Grab both vertex and index buffer views from the mesh
 			D3D12_VERTEX_BUFFER_VIEW vbView = e->GetMesh()->GetVertexBufferView();
@@ -394,6 +428,9 @@ void Game::Draw(float deltaTime, float totalTime)
 			// Set both buffers
 			Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
 			Graphics::CommandList->IASetIndexBuffer(&ibView);
+
+			// Change to the correct pipeline state
+			Graphics::CommandList->SetPipelineState(material->GetPipelineState().Get());
 
 			// Finally call draw indexed
 			Graphics::CommandList->DrawIndexedInstanced(e->GetMesh()->GetIndexCount(), 1, 0, 0, 0);

@@ -1,4 +1,7 @@
 
+// Create samplers
+SamplerState BasicSampler : register(s0);
+
 // Struct representing the data we expect to receive from earlier pipeline stages
 // - Should match the output of our corresponding vertex shader
 // - The name of the struct itself is unimportant
@@ -12,6 +15,20 @@ struct VertexToPixel
 	//  |    |                |
 	//  v    v                v
 	float4 screenPosition	: SV_POSITION;
+	float2 uv               : TEXCOORD;
+	float3 normal           : NORMAL;
+	float3 tangent          : TANGENT;
+	float3 worldPosition    : POSITION;
+};
+
+cbuffer ExternalData : register(b0)
+{
+	unsigned int albedo;
+	unsigned int normal;
+	unsigned int metal;
+	unsigned int roughness;
+	float2 uvScale;
+	float2 uvOffset;
 };
 
 // --------------------------------------------------------
@@ -25,9 +42,8 @@ struct VertexToPixel
 // --------------------------------------------------------
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	// Just return the input color
-	// - This color (like most values passing through the rasterizer) is 
-	//   interpolated for each pixel between the corresponding vertices 
-	//   of the triangle we're rendering
-    return float4(1, 1, 1, 1);
+	// Get textures from the resource descriptor heap
+	Texture2D AlbedoTexture = ResourceDescriptorHeap[albedo];
+	
+    return AlbedoTexture.Sample(BasicSampler, input.uv);
 }

@@ -22,6 +22,7 @@ cbuffer ExternalData : register(b0)
 	matrix world;
 	matrix view;
 	matrix projection;
+	matrix worldInvTranspose
 };
 
 // Struct representing the data we're sending down the pipeline
@@ -37,6 +38,10 @@ struct VertexToPixel
 	//  |    |                |
 	//  v    v                v
 	float4 screenPosition	: SV_POSITION;	// XYZW position (System Value Position)
+	float2 uv               : TEXCOORD;
+	float3 normal           : NORMAL;
+	float3 tangent          : TANGENT;
+	float3 worldPosition    : POSITION;
 };
 
 // --------------------------------------------------------
@@ -56,6 +61,14 @@ VertexToPixel main( VertexShaderInput input )
 
 	// transform local position into screen space coordinates
 	output.screenPosition = mul(wvp, float4(input.localPosition, 1.0f));
+
+	// Pass through texutre data
+	output.uv = input.uv;
+	output.normal = mul((float3x3)m4WorldInvTranspose, input.normal);
+	output.tangent = mul((float3x3) m4World, input.tangent);
+
+	// Update world position
+	output.worldPosition = mul(m4World, float4(input.localPosition, 1)).xyz;
 
 	return output;
 }
