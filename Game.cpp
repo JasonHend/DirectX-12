@@ -36,6 +36,7 @@ Game::Game()
 
 	CreateRootSigAndPipelineState();
 	CreateGeometry();
+	CreateLights();
 }
 
 
@@ -95,6 +96,44 @@ void Game::CreateGeometry()
 	entities.push_back(sphereEntity);
 	entities.push_back(helixEntity);
 	entities.push_back(torusEntity);
+}
+
+
+/// <summary>
+/// Create all lights that will be sent to objects for rendering
+/// </summary>
+void Game::CreateLights()
+{
+	// Fill out light structures and push them to the vector
+	directionalLight = {};
+	directionalLight.type = LIGHT_TYPE_DIRECTIONAL;
+	directionalLight.direction = XMFLOAT3(0.0f, -1.0f, 0.0f);
+	directionalLight.range = 15.0f;
+	directionalLight.position = XMFLOAT3(0.0f, 10.0f, 0.0f);
+	directionalLight.intensity = 2.0f;
+	directionalLight.color = XMFLOAT3(0.502f, 0.0f, 0.502f);
+
+	pointLight = {};
+	pointLight.type = LIGHT_TYPE_POINT;
+	pointLight.range = 5.0f;
+	pointLight.position = XMFLOAT3(-5.0f, 0.0f, 0.0f);
+	pointLight.intensity = 1.75f;
+	pointLight.color = XMFLOAT3(1.0f, 1.0f, 1.0f);
+
+	spotLight = {};
+	spotLight.type = LIGHT_TYPE_SPOT;
+	spotLight.direction = XMFLOAT3(0.5f, -0.75f, -0.3f);
+	spotLight.range = 10.0f;
+	spotLight.position = XMFLOAT3(-2.0f, 15.0f, 2.0f);
+	spotLight.intensity = 3.0f;
+	spotLight.spotInnerAngle = 30.0f;
+	spotLight.spotOuterAngle = 58.0f;
+	spotLight.color = XMFLOAT3(0.2f, 0.7f, 0.0f);
+
+	lights.push_back(directionalLight);
+	lights.push_back(pointLight);
+	lights.push_back(spotLight);
+	lights.resize(numLights);
 }
 
 
@@ -357,7 +396,7 @@ void Game::Draw(float deltaTime, float totalTime)
 		rb.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		Graphics::CommandList->ResourceBarrier(1, &rb);
 		// Background color (Cornflower Blue in this case) for clearing
-		float color[] = { 0.4f, 0.6f, 0.75f, 1.0f };
+		float color[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 		// Clear the RTV
 		Graphics::CommandList->ClearRenderTargetView(
 			Graphics::RTVHandles[Graphics::SwapChainIndex()],
@@ -407,13 +446,16 @@ void Game::Draw(float deltaTime, float totalTime)
 			std::shared_ptr<Material> material = e->GetMaterial();
 
 			// Fill out struct for pixel shader
-			PixelDataExternalData psData = {};
+			PixelShaderExternalData psData = {};
 			psData.albedo = material->GetAlbedo();
 			psData.normal = material->GetNormalMap();
 			psData.metal = material->GetMetalness();
 			psData.roughness = material->GetRoughness();
 			psData.uvScale = material->GetUVScale();
 			psData.uvOffset = material->GetUVOffset();
+			psData.cameraPosition = mainCamera->GetTransform()->GetPosition();
+			psData.lightCount = numLights;
+			memcpy(psData.lights, &lights[0], sizeof(Light) * numLights);
 
 			// Copy to GPU
 			gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&psData, sizeof(psData));

@@ -1,5 +1,6 @@
 #pragma once
 #include <DirectXMath.h>
+#include "Lights.h"
 
 // Struct that defines basic data to pass into the vertex shader
 struct VertexShaderExternalData
@@ -11,7 +12,7 @@ struct VertexShaderExternalData
 };
 
 // Struct that defines basic data that will be sent to the pixel shader
-struct PixelDataExternalData
+struct PixelShaderExternalData
 {
 	unsigned int albedo;
 	unsigned int normal;
@@ -19,4 +20,7 @@ struct PixelDataExternalData
 	unsigned int roughness;
 	DirectX::XMFLOAT2 uvScale;
 	DirectX::XMFLOAT2 uvOffset;
+	DirectX::XMFLOAT3 cameraPosition;
+	unsigned int lightCount;
+	Light lights[3];
 };

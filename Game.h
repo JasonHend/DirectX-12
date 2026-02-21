@@ -6,6 +6,7 @@
 #include "Camera.h"
 #include "GameEntity.h"
 #include "Mesh.h"
+#include "Lights.h"
 
 class Game
 {
@@ -25,6 +26,7 @@ private:
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void CreateGeometry();
+	void CreateLights();
 	void CreateRootSigAndPipelineState();
 
 	// Note the usage of ComPtr below
@@ -52,5 +54,12 @@ private:
 
 	// Entities
 	std::vector<std::shared_ptr<GameEntity>> entities;
+
+	// Lights
+	Light directionalLight;
+	Light pointLight;
+	Light spotLight;
+	unsigned int numLights = 3;
+	std::vector<Light> lights;
 };
 

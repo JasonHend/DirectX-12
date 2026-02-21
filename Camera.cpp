@@ -54,16 +54,16 @@ void Camera::UpdateViewMatrix()
 void Camera::Update(float dt)
 {
 	// back and forth
-	if (Input::KeyDown('W')) { transform->MoveRelative(0.0f, 0.0f, 0.5f * dt); }
-	if (Input::KeyDown('S')) { transform->MoveRelative(0.0f, 0.0f, -0.5f * dt); }
+	if (Input::KeyDown('W')) { transform->MoveRelative(0.0f, 0.0f, moveSpeed * dt); }
+	if (Input::KeyDown('S')) { transform->MoveRelative(0.0f, 0.0f, -moveSpeed * dt); }
 
 	// left and right
-	if (Input::KeyDown('A')) { transform->MoveRelative(-0.5f * dt, 0.0f, 0.0f); }
-	if (Input::KeyDown('D')) { transform->MoveRelative(0.5f * dt, 0.0f, 0.0f); }
+	if (Input::KeyDown('A')) { transform->MoveRelative(-moveSpeed * dt, 0.0f, 0.0f); }
+	if (Input::KeyDown('D')) { transform->MoveRelative(moveSpeed * dt, 0.0f, 0.0f); }
 
 	// up and down
-	if (Input::KeyDown('E')) { transform->MoveRelative(0.0f, 0.5f * dt, 0.0f); }
-	if (Input::KeyDown('Q')) { transform->MoveRelative(0.0f, -0.5f * dt, 0.0f); }
+	if (Input::KeyDown('E')) { transform->MoveRelative(0.0f, moveSpeed * dt, 0.0f); }
+	if (Input::KeyDown('Q')) { transform->MoveRelative(0.0f, -moveSpeed * dt, 0.0f); }
 
 	// mouse rotation
 	if (Input::MouseLeftDown())

@@ -1,3 +1,4 @@
+#include "ShaderIncludes.hlsli"
 
 // Create samplers
 SamplerState BasicSampler : register(s0);
@@ -29,6 +30,9 @@ cbuffer ExternalData : register(b0)
 	unsigned int roughness;
 	float2 uvScale;
 	float2 uvOffset;
+	float3 cameraPosition;
+	unsigned int lightCount;
+	Light lights[3];
 };
 
 // --------------------------------------------------------
@@ -44,6 +48,53 @@ float4 main(VertexToPixel input) : SV_TARGET
 {
 	// Get textures from the resource descriptor heap
 	Texture2D AlbedoTexture = ResourceDescriptorHeap[albedo];
+	Texture2D NormalTexture = ResourceDescriptorHeap[normal];
+	Texture2D MetalTexture = ResourceDescriptorHeap[metal];
+	Texture2D RoughnessTexture = ResourceDescriptorHeap[roughness];
+
+	// Normalize tangents and normals
+	input.normal = normalize(input.normal);
+	input.tangent = normalize(input.tangent);
+
+	input.uv = input.uv * uvScale + uvOffset;
+
+	// Sample normals
+	input.normal = NormalMapping(NormalTexture, BasicSampler, input.uv, input.normal, input.tangent);
+
+	// Texture loading before inclusion of lights
+	float4 surfaceColor = AlbedoTexture.Sample(BasicSampler, input.uv);
+	surfaceColor.rgb = pow(surfaceColor.rgb, 2.2f);
+
+	// Roughness and metal sampling
+	float roughness = RoughnessTexture.Sample(BasicSampler, input.uv).r;
+	float metalness = MetalTexture.Sample(BasicSampler, input.uv).r;
+
+	// Specular
+	float3 specularColor = lerp(F0_NON_METAL, surfaceColor.rgb, metalness);
+
+	// Total light
+	float3 totalLight = float3(0.0f, 0.0f, 0.0f);
+
+	for (int i = 0; i < lightCount; i++)
+	{
+		Light light = lights[i];
+		light.direction = normalize(light.direction);
+
+		switch (light.type)
+		{
+			case LIGHT_TYPE_DIRECTIONAL:
+				totalLight += DirectionalLight(light, input.normal, float3(surfaceColor.rgb), cameraPosition, input.worldPosition, roughness, metalness);
+				break;
+			
+			case LIGHT_TYPE_POINT:
+				totalLight += PointLight(light, input.normal, float3(surfaceColor.rgb), cameraPosition, input.worldPosition, roughness, metalness);
+				break;
+
+			case LIGHT_TYPE_SPOT:
+				totalLight += SpotLight(light, input.normal, float3(surfaceColor.rgb), cameraPosition, input.worldPosition, roughness, metalness);
+				break;
+		}
+	}
 	
-    return AlbedoTexture.Sample(BasicSampler, input.uv);
+    return float4(pow(totalLight, 1.0f / 2.2f), 1.0f);
 }

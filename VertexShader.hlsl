@@ -22,7 +22,7 @@ cbuffer ExternalData : register(b0)
 	matrix world;
 	matrix view;
 	matrix projection;
-	matrix worldInvTranspose
+	matrix worldInvTranspose;
 };
 
 // Struct representing the data we're sending down the pipeline
@@ -64,11 +64,11 @@ VertexToPixel main( VertexShaderInput input )
 
 	// Pass through texutre data
 	output.uv = input.uv;
-	output.normal = mul((float3x3)m4WorldInvTranspose, input.normal);
-	output.tangent = mul((float3x3) m4World, input.tangent);
+	output.normal = mul((float3x3)worldInvTranspose, input.normal);
+	output.tangent = mul((float3x3)world, input.tangent);
 
 	// Update world position
-	output.worldPosition = mul(m4World, float4(input.localPosition, 1)).xyz;
+	output.worldPosition = mul(world, float4(input.localPosition, 1)).xyz;
 
 	return output;
 }
