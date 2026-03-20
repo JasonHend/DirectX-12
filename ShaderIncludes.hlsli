@@ -28,10 +28,10 @@ struct Light
 };
 
 // Normal mapping functions
-float3 NormalMapping(Texture2D normalTexture, SamplerState sampler, float2 uv, float3 normal, float3 tangent)
+float3 NormalMapping(Texture2D normalTexture, SamplerState basicSampler, float2 uv, float3 normal, float3 tangent)
 {
     // Sample from normal map
-    float3 unpackedNormal = normalTexture.Sample(sampler, uv).rgb * 2.0f - 1.0f;
+    float3 unpackedNormal = normalTexture.Sample(basicSampler, uv).rgb * 2.0f - 1.0f;
 
     // Create TBN matrix
     float3 N = normal;
