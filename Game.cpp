@@ -5,6 +5,7 @@
 #include "PathHelpers.h"
 #include "Window.h"
 #include "BufferStructs.h"
+#include "RayTracing.h"
 
 #include <DirectXMath.h>
 
@@ -21,6 +22,12 @@ using namespace DirectX;
 // --------------------------------------------------------
 Game::Game()
 {
+	// Initialize raytracing
+	RayTracing::Initialize(
+		Window::Width(),
+		Window::Height(),
+		FixPath(L"RayTracing.cso"));
+
 	// Create the main camera
 	XMFLOAT3 initialPos = XMFLOAT3(0.0f, 0.0f, -15.0f);
 	XMFLOAT3 startOrientation = XMFLOAT3(0.0f, 0.0f, 0.0f);
@@ -34,7 +41,7 @@ Game::Game()
 		20.0f,
 		10.0f);
 
-	CreateRootSigAndPipelineState();
+	//CreateRootSigAndPipelineState();
 	CreateGeometry();
 	CreateLights();
 }
@@ -87,7 +94,7 @@ void Game::CreateGeometry()
 	// Create entities
 	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere, rockMaterial);
 	std::shared_ptr<GameEntity> helixEntity = std::make_shared<GameEntity>(helix, rockMaterial);
-	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus, rockMaterial);
+	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus, rockMaterial);	
 
 	sphereEntity->GetTransform()->SetPosition(-3.0f, 0.0f, 0.0f);
 	helixEntity->GetTransform()->SetPosition(0.0f, 0.0f, 0.0f);
@@ -96,6 +103,18 @@ void Game::CreateGeometry()
 	entities.push_back(sphereEntity);
 	entities.push_back(helixEntity);
 	entities.push_back(torusEntity);
+
+	// Create buffer data for all entities
+	RayTracing::CreateEntityDataBuffer(entities);
+
+	// Create a TLAS once all entities have been made
+	RayTracing::CreateTopLevelAccelerationStructureForScene(entities);
+
+	// Finalize any initialization and wait for the GPU
+	// before proceeding to the game loop
+	Graphics::CloseAndExecuteCommandList();
+	Graphics::WaitForGPU();
+	Graphics::ResetAllocatorAndCommandList();
 }
 
 
@@ -351,6 +370,9 @@ void Game::OnResize()
 		// Cameras
 		mainCamera->UpdateProjectionMatrix(aspectRatio);
 	}
+
+	// Resize raytracing output texture
+	RayTracing::ResizeOutputUAV(Window::Width(), Window::Height());
 }
 
 
@@ -384,112 +406,93 @@ void Game::Draw(float deltaTime, float totalTime)
 	// Grab the current back buffer for this frame
 	Microsoft::WRL::ComPtr<ID3D12Resource> currentBackBuffer =
 		Graphics::BackBuffers[Graphics::SwapChainIndex()];
-	// Clearing the render target
+	
+	// Raytracing - Recreate the TLAS and then trace it
 	{
-		// Transition the back buffer from present to render target
-		D3D12_RESOURCE_BARRIER rb = {};
-		rb.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		rb.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		rb.Transition.pResource = currentBackBuffer.Get();
-		rb.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-		rb.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		rb.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		Graphics::CommandList->ResourceBarrier(1, &rb);
-		// Background color (Cornflower Blue in this case) for clearing
-		float color[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-		// Clear the RTV
-		Graphics::CommandList->ClearRenderTargetView(
-			Graphics::RTVHandles[Graphics::SwapChainIndex()],
-			color,
-			0, 0); // No scissor rectangles
-		// Clear the depth buffer, too
-		Graphics::CommandList->ClearDepthStencilView(
-			Graphics::DSVHandle,
-			D3D12_CLEAR_FLAG_DEPTH,
-			1.0f, // Max depth = 1.0f
-			0, // Not clearing stencil, but need a value
-			0, 0); // No scissor rects
+		RayTracing::CreateTopLevelAccelerationStructureForScene(entities);
+		RayTracing::Raytrace(mainCamera, currentBackBuffer);
 	}
 
-	// Rendering here!
-	{
-		// Set overall pipeline state
-		Graphics::CommandList->SetPipelineState(pipelineState.Get());
-		// Set up descriptor heap
-		Graphics::CommandList->SetDescriptorHeaps(1, Graphics::CBVSRVDescriptorHeap.GetAddressOf());
-		// Root sig (must happen before root descriptor table)
-		Graphics::CommandList->SetGraphicsRootSignature(rootSignature.Get());
-		// Set up other commands for rendering
-		Graphics::CommandList->OMSetRenderTargets(
-			1, &Graphics::RTVHandles[Graphics::SwapChainIndex()], true, &Graphics::DSVHandle);
-		Graphics::CommandList->RSSetViewports(1, &viewport);
-		Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
-		Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//// Rendering here!
+	//{
+	//	// Set overall pipeline state
+	//	Graphics::CommandList->SetPipelineState(pipelineState.Get());
+	//	// Set up descriptor heap
+	//	Graphics::CommandList->SetDescriptorHeaps(1, Graphics::CBVSRVDescriptorHeap.GetAddressOf());
+	//	// Root sig (must happen before root descriptor table)
+	//	Graphics::CommandList->SetGraphicsRootSignature(rootSignature.Get());
+	//	// Set up other commands for rendering
+	//	Graphics::CommandList->OMSetRenderTargets(
+	//		1, &Graphics::RTVHandles[Graphics::SwapChainIndex()], true, &Graphics::DSVHandle);
+	//	Graphics::CommandList->RSSetViewports(1, &viewport);
+	//	Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
+	//	Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		// Entity rendering loop
-		for (auto& e : entities)
-		{
-			// Fill out struct to send to the vertex shader
-			VertexShaderExternalData cbData = {};
-			cbData.m4World = e->GetTransform()->GetWorldMatrix();
-			cbData.m4View = mainCamera->GetViewMatrix();
-			cbData.m4Projection = mainCamera->GetProjectionMatrix();
-			cbData.m4WorldInvTranspose = e->GetTransform()->GetWorldInverseTransposeMatrix();
+	//	// Entity rendering loop
+	//	for (auto& e : entities)
+	//	{
+	//		// Fill out struct to send to the vertex shader
+	//		VertexShaderExternalData cbData = {};
+	//		cbData.m4World = e->GetTransform()->GetWorldMatrix();
+	//		cbData.m4View = mainCamera->GetViewMatrix();
+	//		cbData.m4Projection = mainCamera->GetProjectionMatrix();
+	//		cbData.m4WorldInvTranspose = e->GetTransform()->GetWorldInverseTransposeMatrix();
 
-			// Copy the struct data over to the gpu
-			D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&cbData, sizeof(cbData));
-			
-			// Utilize the command list to set the root descriptor table with the handle
-			Graphics::CommandList->SetGraphicsRootDescriptorTable(0, gpuHandle);
+	//		// Copy the struct data over to the gpu
+	//		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&cbData, sizeof(cbData));
+	//		
+	//		// Utilize the command list to set the root descriptor table with the handle
+	//		Graphics::CommandList->SetGraphicsRootDescriptorTable(0, gpuHandle);
 
-			// Grab material reference for filling out structs
-			std::shared_ptr<Material> material = e->GetMaterial();
+	//		// Grab material reference for filling out structs
+	//		std::shared_ptr<Material> material = e->GetMaterial();
 
-			// Fill out struct for pixel shader
-			PixelShaderExternalData psData = {};
-			psData.albedo = material->GetAlbedo();
-			psData.normal = material->GetNormalMap();
-			psData.metal = material->GetMetalness();
-			psData.roughness = material->GetRoughness();
-			psData.uvScale = material->GetUVScale();
-			psData.uvOffset = material->GetUVOffset();
-			psData.cameraPosition = mainCamera->GetTransform()->GetPosition();
-			psData.lightCount = numLights;
-			memcpy(psData.lights, &lights[0], sizeof(Light) * numLights);
+	//		// Fill out struct for pixel shader
+	//		PixelShaderExternalData psData = {};
+	//		psData.albedo = material->GetAlbedo();
+	//		psData.normal = material->GetNormalMap();
+	//		psData.metal = material->GetMetalness();
+	//		psData.roughness = material->GetRoughness();
+	//		psData.uvScale = material->GetUVScale();
+	//		psData.uvOffset = material->GetUVOffset();
+	//		psData.cameraPosition = mainCamera->GetTransform()->GetPosition();
+	//		psData.lightCount = numLights;
+	//		memcpy(psData.lights, &lights[0], sizeof(Light) * numLights);
 
-			// Copy to GPU
-			gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&psData, sizeof(psData));
+	//		// Copy to GPU
+	//		gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&psData, sizeof(psData));
 
-			// Set root descriptor
-			Graphics::CommandList->SetGraphicsRootDescriptorTable(1, gpuHandle);
+	//		// Set root descriptor
+	//		Graphics::CommandList->SetGraphicsRootDescriptorTable(1, gpuHandle);
 
-			// Grab both vertex and index buffer views from the mesh
-			D3D12_VERTEX_BUFFER_VIEW vbView = e->GetMesh()->GetVertexBufferView();
-			D3D12_INDEX_BUFFER_VIEW ibView = e->GetMesh()->GetIndexBufferView();
+	//		// Grab both vertex and index buffer views from the mesh
+	//		D3D12_VERTEX_BUFFER_VIEW vbView = e->GetMesh()->GetVertexBufferView();
+	//		D3D12_INDEX_BUFFER_VIEW ibView = e->GetMesh()->GetIndexBufferView();
 
-			// Set both buffers
-			Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
-			Graphics::CommandList->IASetIndexBuffer(&ibView);
+	//		// Set both buffers
+	//		Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
+	//		Graphics::CommandList->IASetIndexBuffer(&ibView);
 
-			// Change to the correct pipeline state
-			Graphics::CommandList->SetPipelineState(material->GetPipelineState().Get());
+	//		// Change to the correct pipeline state
+	//		Graphics::CommandList->SetPipelineState(material->GetPipelineState().Get());
 
-			// Finally call draw indexed
-			Graphics::CommandList->DrawIndexedInstanced(e->GetMesh()->GetIndexCount(), 1, 0, 0, 0);
-		}
-	}
+	//		// Finally call draw indexed
+	//		Graphics::CommandList->DrawIndexedInstanced(e->GetMesh()->GetIndexCount(), 1, 0, 0, 0);
+	//	}
+	//}
 
 	// Present
 	{
 		// Transition back to present
-		D3D12_RESOURCE_BARRIER rb = {};
+		/*D3D12_RESOURCE_BARRIER rb = {};
 		rb.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 		rb.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		rb.Transition.pResource = currentBackBuffer.Get();
 		rb.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		rb.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 		rb.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		Graphics::CommandList->ResourceBarrier(1, &rb);
+		Graphics::CommandList->ResourceBarrier(1, &rb);*/
+		
 		// Must occur BEFORE present
 		Graphics::CloseAndExecuteCommandList();
 		// Present the current back buffer and move to the next one

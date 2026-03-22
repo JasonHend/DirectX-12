@@ -1,5 +1,6 @@
 #include "Mesh.h"
 #include "Graphics.h"
+#include "RayTracing.h"
 #include "Vertex.h"
 #include <fstream>
 #include <stdexcept>
@@ -14,6 +15,9 @@ Mesh::Mesh(Vertex* vertices, unsigned int* indices, size_t vertexCount, size_t i
 	this->indexCount = (int)indexCount;
 
 	Mesh::CreateBuffer(vertices, indices, vertexCount, indexCount);
+
+	// Create the raytracing acceleration structure for this mesh
+	rayTracingData = RayTracing::CreateBottomLevelAccelerationStructureForMesh(this);
 }
 
 Mesh::Mesh(const std::wstring& objFile)
@@ -259,6 +263,9 @@ Mesh::Mesh(const std::wstring& objFile)
 	//     of which are unnecessary for now.
 	//
 	// *************************************
+
+	// Create the raytracing acceleration structure for this mesh
+	rayTracingData = RayTracing::CreateBottomLevelAccelerationStructureForMesh(this);
 }
 
 void Mesh::CreateBuffer(Vertex* vertices, unsigned int* indices, size_t vertexCount, size_t indexCount)
@@ -280,25 +287,13 @@ void Mesh::CreateBuffer(Vertex* vertices, unsigned int* indices, size_t vertexCo
 	ibView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
 }
 
-D3D12_VERTEX_BUFFER_VIEW Mesh::GetVertexBufferView()
-{
-	return vbView;
-}
-
-D3D12_INDEX_BUFFER_VIEW Mesh::GetIndexBufferView()
-{
-	return ibView;
-}
-
-int Mesh::GetIndexCount()
-{
-	return indexCount;
-}
-
-int Mesh::GetVertexCount()
-{
-	return vertexCount;
-}
+D3D12_VERTEX_BUFFER_VIEW Mesh::GetVertexBufferView() { return vbView; }
+D3D12_INDEX_BUFFER_VIEW Mesh::GetIndexBufferView() { return ibView; }
+Microsoft::WRL::ComPtr<ID3D12Resource> Mesh::GetVertexBuffer() { return vertexBuffer; }
+Microsoft::WRL::ComPtr<ID3D12Resource> Mesh::GetIndexBuffer() { return indexBuffer; }
+int Mesh::GetIndexCount() { return indexCount; }
+int Mesh::GetVertexCount() { return vertexCount; }
+const Mesh::MeshRayTracingData& Mesh::GetRayTracingData() { return rayTracingData; }
 
 Mesh::~Mesh()
 {
