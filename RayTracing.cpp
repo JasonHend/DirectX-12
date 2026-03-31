@@ -94,7 +94,7 @@ void RayTracing::CreateRaytracingRootSignatures()
 	// Create a global root signature shared across all raytracing shaders
 	{
 		// Updated root params for bindless textures
-		D3D12_ROOT_PARAMETER rootParams[1] = {};
+		D3D12_ROOT_PARAMETER rootParams[1] {};
 		{
 			// First param is the UAV range for the output texture
 			rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -497,10 +497,10 @@ void RayTracing::ResizeOutputUAV(
 // NOTE: This demo assumes exactly one BLAS, so running this 
 // method more than once is not advised!
 // --------------------------------------------------------
-Mesh::MeshRayTracingData RayTracing::CreateBottomLevelAccelerationStructureForMesh(Mesh* mesh)
+MeshRayTracingData RayTracing::CreateBottomLevelAccelerationStructureForMesh(Mesh* mesh)
 {
 	// Raytracing-related data for this mesh
-	Mesh::MeshRayTracingData rayTracingData{};
+	MeshRayTracingData rayTracingData{};
 
 	// Don't bother if DXR isn't available
 	if (!dxrAvailable)
@@ -766,7 +766,7 @@ void RayTracing::Raytrace(std::shared_ptr<Camera> camera, Microsoft::WRL::ComPtr
 	}
 
 	// Grab and fill a constant buffer
-	RaytracingSceneData sceneData = {};
+	RayTracingSceneData sceneData = {};
 	sceneData.CameraPosition = camera->GetTransform()->GetPosition();
 
 	DirectX::XMFLOAT4X4 view = camera->GetViewMatrix();
@@ -776,7 +776,7 @@ void RayTracing::Raytrace(std::shared_ptr<Camera> camera, Microsoft::WRL::ComPtr
 	DirectX::XMMATRIX vp = DirectX::XMMatrixMultiply(v, p);
 	DirectX::XMStoreFloat4x4(&sceneData.InverseViewProjection, XMMatrixInverse(0, vp));
 
-	D3D12_GPU_DESCRIPTOR_HANDLE cbuffer = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&sceneData, sizeof(RaytracingSceneData));
+	D3D12_GPU_DESCRIPTOR_HANDLE cbuffer = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&sceneData, sizeof(RayTracingSceneData));
 
 	// ACTUAL RAYTRACING HERE
 	{

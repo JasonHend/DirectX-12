@@ -293,7 +293,7 @@ Microsoft::WRL::ComPtr<ID3D12Resource> Mesh::GetVertexBuffer() { return vertexBu
 Microsoft::WRL::ComPtr<ID3D12Resource> Mesh::GetIndexBuffer() { return indexBuffer; }
 int Mesh::GetIndexCount() { return indexCount; }
 int Mesh::GetVertexCount() { return vertexCount; }
-const Mesh::MeshRayTracingData& Mesh::GetRayTracingData() { return rayTracingData; }
+const MeshRayTracingData& Mesh::GetRayTracingData() { return rayTracingData; }
 
 Mesh::~Mesh()
 {

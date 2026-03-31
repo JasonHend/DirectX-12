@@ -5,16 +5,18 @@
 #include "Vertex.h"
 #include <string>
 
+// Structs
+struct MeshRayTracingData
+{
+	D3D12_GPU_DESCRIPTOR_HANDLE IndexBufferSRV{};
+	D3D12_GPU_DESCRIPTOR_HANDLE VertexBufferSRV{};
+	Microsoft::WRL::ComPtr<ID3D12Resource> BLAS;
+};
+
 class Mesh
 {
 public:
-	// Structs
-	struct MeshRayTracingData
-	{
-		D3D12_GPU_DESCRIPTOR_HANDLE IndexBufferSRV {};
-		D3D12_GPU_DESCRIPTOR_HANDLE VertexBufferSRV {};
-		Microsoft::WRL::ComPtr<ID3D12Resource> BLAS;
-	};
+
 
 	Mesh(Vertex* vertices, unsigned int* indices, size_t vertexCount, size_t indexCount);
 	Mesh(const std::wstring& objFile);

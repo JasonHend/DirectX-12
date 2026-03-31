@@ -406,93 +406,15 @@ void Game::Draw(float deltaTime, float totalTime)
 	// Grab the current back buffer for this frame
 	Microsoft::WRL::ComPtr<ID3D12Resource> currentBackBuffer =
 		Graphics::BackBuffers[Graphics::SwapChainIndex()];
-	
+
 	// Raytracing - Recreate the TLAS and then trace it
 	{
 		RayTracing::CreateTopLevelAccelerationStructureForScene(entities);
 		RayTracing::Raytrace(mainCamera, currentBackBuffer);
 	}
 
-	//// Rendering here!
-	//{
-	//	// Set overall pipeline state
-	//	Graphics::CommandList->SetPipelineState(pipelineState.Get());
-	//	// Set up descriptor heap
-	//	Graphics::CommandList->SetDescriptorHeaps(1, Graphics::CBVSRVDescriptorHeap.GetAddressOf());
-	//	// Root sig (must happen before root descriptor table)
-	//	Graphics::CommandList->SetGraphicsRootSignature(rootSignature.Get());
-	//	// Set up other commands for rendering
-	//	Graphics::CommandList->OMSetRenderTargets(
-	//		1, &Graphics::RTVHandles[Graphics::SwapChainIndex()], true, &Graphics::DSVHandle);
-	//	Graphics::CommandList->RSSetViewports(1, &viewport);
-	//	Graphics::CommandList->RSSetScissorRects(1, &scissorRect);
-	//	Graphics::CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	//	// Entity rendering loop
-	//	for (auto& e : entities)
-	//	{
-	//		// Fill out struct to send to the vertex shader
-	//		VertexShaderExternalData cbData = {};
-	//		cbData.m4World = e->GetTransform()->GetWorldMatrix();
-	//		cbData.m4View = mainCamera->GetViewMatrix();
-	//		cbData.m4Projection = mainCamera->GetProjectionMatrix();
-	//		cbData.m4WorldInvTranspose = e->GetTransform()->GetWorldInverseTransposeMatrix();
-
-	//		// Copy the struct data over to the gpu
-	//		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&cbData, sizeof(cbData));
-	//		
-	//		// Utilize the command list to set the root descriptor table with the handle
-	//		Graphics::CommandList->SetGraphicsRootDescriptorTable(0, gpuHandle);
-
-	//		// Grab material reference for filling out structs
-	//		std::shared_ptr<Material> material = e->GetMaterial();
-
-	//		// Fill out struct for pixel shader
-	//		PixelShaderExternalData psData = {};
-	//		psData.albedo = material->GetAlbedo();
-	//		psData.normal = material->GetNormalMap();
-	//		psData.metal = material->GetMetalness();
-	//		psData.roughness = material->GetRoughness();
-	//		psData.uvScale = material->GetUVScale();
-	//		psData.uvOffset = material->GetUVOffset();
-	//		psData.cameraPosition = mainCamera->GetTransform()->GetPosition();
-	//		psData.lightCount = numLights;
-	//		memcpy(psData.lights, &lights[0], sizeof(Light) * numLights);
-
-	//		// Copy to GPU
-	//		gpuHandle = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(&psData, sizeof(psData));
-
-	//		// Set root descriptor
-	//		Graphics::CommandList->SetGraphicsRootDescriptorTable(1, gpuHandle);
-
-	//		// Grab both vertex and index buffer views from the mesh
-	//		D3D12_VERTEX_BUFFER_VIEW vbView = e->GetMesh()->GetVertexBufferView();
-	//		D3D12_INDEX_BUFFER_VIEW ibView = e->GetMesh()->GetIndexBufferView();
-
-	//		// Set both buffers
-	//		Graphics::CommandList->IASetVertexBuffers(0, 1, &vbView);
-	//		Graphics::CommandList->IASetIndexBuffer(&ibView);
-
-	//		// Change to the correct pipeline state
-	//		Graphics::CommandList->SetPipelineState(material->GetPipelineState().Get());
-
-	//		// Finally call draw indexed
-	//		Graphics::CommandList->DrawIndexedInstanced(e->GetMesh()->GetIndexCount(), 1, 0, 0, 0);
-	//	}
-	//}
-
 	// Present
 	{
-		// Transition back to present
-		/*D3D12_RESOURCE_BARRIER rb = {};
-		rb.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		rb.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		rb.Transition.pResource = currentBackBuffer.Get();
-		rb.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		rb.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-		rb.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-		Graphics::CommandList->ResourceBarrier(1, &rb);*/
-		
 		// Must occur BEFORE present
 		Graphics::CloseAndExecuteCommandList();
 		// Present the current back buffer and move to the next one

@@ -64,7 +64,7 @@ namespace RayTracing
 		Microsoft::WRL::ComPtr<ID3D12Resource> currentBackBuffer);
 
 	// Helpers for creating acceleration structures
-	Mesh::MeshRayTracingData CreateBottomLevelAccelerationStructureForMesh(Mesh* mesh);
+	MeshRayTracingData CreateBottomLevelAccelerationStructureForMesh(Mesh* mesh);
 	void CreateTopLevelAccelerationStructureForScene(
 		std::vector<std::shared_ptr<GameEntity>> scene);
 

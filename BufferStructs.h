@@ -34,8 +34,8 @@ struct RayTracingDrawData
 	unsigned int OutputUAVDescriptorIndex;
 };
 
-// Overall scene data for ray tracing
-struct RaytracingSceneData
+// Overall scene data for ray tracing (constant buffer)
+struct RayTracingSceneData
 {
 	DirectX::XMFLOAT4X4 InverseViewProjection;
 	DirectX::XMFLOAT3 CameraPosition;
@@ -45,7 +45,7 @@ struct RaytracingSceneData
 // Per-entity information (geom, material, etc.)
 // - Multiple sets of these will be stored in a structured buffer
 // - Materials *could* be separated out into their own buffer
-//   to cut down on data repition
+// to cut down on data repetition
 struct RayTracingEntityData
 {
 	DirectX::XMFLOAT4 Color;
