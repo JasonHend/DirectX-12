@@ -91,18 +91,54 @@ void Game::CreateGeometry()
 		rockMetal,
 		rockRoughness);
 
+	std::shared_ptr<Material> floorMaterial = std::make_shared<Material>(
+		DirectX::XMFLOAT3(0.5f, 0.5f, 0.5f),
+		DirectX::XMFLOAT2(1.0f, 1.0f),
+		DirectX::XMFLOAT2(0.0f, 0.0f),
+		pipelineState,
+		rockAlbedo,
+		rockNormal,
+		rockMetal,
+		rockRoughness);
+
 	// Create entities
 	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere, rockMaterial);
 	std::shared_ptr<GameEntity> helixEntity = std::make_shared<GameEntity>(helix, rockMaterial);
-	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus, rockMaterial);	
+	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus, rockMaterial);
+	std::shared_ptr<GameEntity> floorEntity = std::make_shared<GameEntity>(cube, floorMaterial);
 
-	sphereEntity->GetTransform()->SetPosition(-3.0f, 0.0f, 0.0f);
-	helixEntity->GetTransform()->SetPosition(0.0f, 0.0f, 0.0f);
-	torusEntity->GetTransform()->SetPosition(3.0f, 0.0f, 0.0f);
+	sphereEntity->GetTransform()->SetPosition(-3.0f, 10.0f, 0.0f);
+	helixEntity->GetTransform()->SetPosition(0.0f, 10.0f, 0.0f);
+	torusEntity->GetTransform()->SetPosition(3.0f, 10.0f, 0.0f);
+	floorEntity->GetTransform()->SetPosition(0.0f, -10.0f, 0.0f);
+	floorEntity->GetTransform()->SetScale(10.0f, 10.0f, 10.0f);
 
 	entities.push_back(sphereEntity);
 	entities.push_back(helixEntity);
 	entities.push_back(torusEntity);
+	entities.push_back(floorEntity);
+
+	// Create moving sphere entites
+	for (unsigned int i = 0; i < 20; i++)
+	{
+		std::shared_ptr<Material> coloredMaterial = std::make_shared<Material>(
+			DirectX::XMFLOAT3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX),
+			DirectX::XMFLOAT2(1.0f, 1.0f),
+			DirectX::XMFLOAT2(0.0f, 0.0f),
+			pipelineState,
+			rockAlbedo,
+			rockNormal,
+			rockMetal,
+			rockRoughness);
+
+		std::shared_ptr<GameEntity> coloredSphere = std::make_shared<GameEntity>(sphere, coloredMaterial);
+
+		float scale = float(rand() % 2);
+
+		coloredSphere->GetTransform()->SetScale(scale, scale, scale);
+		coloredSphere->GetTransform()->SetPosition(float(rand() % 20) - 10.0f, 1.0f, float(rand() % 20) - 10.0f);
+		entities.push_back(coloredSphere);
+	}
 
 	// Create buffer data for all entities
 	RayTracing::CreateEntityDataBuffer(entities);
@@ -386,11 +422,28 @@ void Game::Update(float deltaTime, float totalTime)
 
 	// Update the transforms of some entities
 	// Sphere will move up and down
-	entities[0]->GetTransform()->MoveRelative(0.0f, float(sin(deltaTime)), 0.0f);
+	entities[0]->GetTransform()->SetPosition(0.0f, float(sin(deltaTime)), 0.0f);
 
-	// Rotate all entites
-	for (auto e : entities)
-		e->GetTransform()->Rotate(deltaTime / 2.0f, deltaTime, 0.0f);
+	// Rotate helix and torus
+	entities[1]->GetTransform()->Rotate(0.3f * deltaTime, 0.0f, 0.0f);
+	entities[2]->GetTransform()->Rotate(0.3f * deltaTime, 0.3f * deltaTime, 0.0f);
+
+	// Move colored spheres
+	for (unsigned int i = 4; i < entities.size(); i++) 
+	{
+		XMFLOAT3 entityPosition = entities[i]->GetTransform()->GetPosition();
+
+		switch (i % 2)
+		{
+		case 0:
+			entityPosition.x = float(sin(0.8 + totalTime + i) * 4.0);
+			break;
+		case 1:
+			entityPosition.z = float(sin(0.6 + totalTime - i) * 4.0);
+			break;
+		}
+		entities[i]->GetTransform()->SetPosition(entityPosition);
+	}
 
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
