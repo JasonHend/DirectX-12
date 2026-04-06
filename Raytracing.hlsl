@@ -1,3 +1,6 @@
+// === Defines ===
+#define PI 3.141592654f
+
 // === Structs ===
 
 // Layout of data in the vertex buffer
@@ -11,9 +14,14 @@ struct Vertex
 
 // Payload for rays (data that is "sent along" with each ray during raytrace)
 // Note: This should be as small as possible, and must match our C++ size definition
+// For path tracing, we need to determine how many rays to emit from each pixel
+// Could pass in a value for recursion depth, this would allow certain materials to 
+// have rays bounce more, for the purposes of this project, it will be hardcoded
 struct RayPayload
 {
     float3 color;
+    uint raysPerPixel;
+    uint maxRecursion;
 };
 
 // Note: We'll be using the built-in BuiltInTriangleIntersectionAttributes struct
@@ -24,7 +32,7 @@ struct SceneData
 {
     matrix InverseViewProjection;
     float3 CameraPosition;
-    float pad;
+    unsigned int RaysPerPixel;
 };
 
 struct EntityData
@@ -112,6 +120,50 @@ RayDesc CalcRayFromCamera(float2 rayIndices, float3 camPos, float4x4 invVP)
     return ray;
 }
 
+// Utilizes Xorshift to calculate random values cheaply
+// https://imgeself.github.io/posts/2019-02-26-raytracer-2-custom-random-function/
+//uint Xorshift(uint value)
+//{
+//    value ^= value << 13;
+//    value ^= value >> 17;
+//    value ^= value << 5;
+//    return value;
+//}
+
+//// Simplified random for float2
+//float2 rand2(float2 uv)
+//{
+//    return float2(Xorshift((uint) uv.x), Xorshift((uint) uv.y));
+//}
+
+// Based on https://thebookofshaders.com/10/
+float rand(float2 uv)
+{
+    return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+float2 rand2(float2 uv)
+{
+    return float2(
+		rand(uv),
+		rand(uv.yx));
+}
+
+// Reflections on hemisphere from demo/chapter 16 of raytracing gems
+float3 RandomCosineWeightedHemisphere(float u0, float u1, float3 unitNormal)
+{
+    float a = u0 * 2 - 1;
+    float b = sqrt(1 - a * a);
+    float phi = 2.0f * PI * u1;
+
+    float x = unitNormal.x + b * cos(phi);
+    float y = unitNormal.y + b * sin(phi);
+    float z = unitNormal.z + a;
+
+	// float pdf = a / PI;
+    return float3(x, y, z);
+}
+
 
 // === Shaders ===
 
@@ -126,36 +178,48 @@ void RayGen()
 	
 	// Get the ray indices
     uint2 rayIndices = DispatchRaysIndex().xy;
+    
+    // Storage for total color value
+    float3 totalColor = float3(0.0f, 0.0f, 0.0f);
+    
+    // Loop based on the passed in raysPerPixel
+    for (int i = 0; i < cb.RaysPerPixel; i++)
+    {
+        // Calculate the ray from the camera through a particular
+	    // pixel of the output buffer using this shader's indices
+        RayDesc ray = CalcRayFromCamera(
+		    rayIndices,
+		    cb.CameraPosition,
+		    cb.InverseViewProjection);
 
-	// Calculate the ray from the camera through a particular
-	// pixel of the output buffer using this shader's indices
-    RayDesc ray = CalcRayFromCamera(
-		rayIndices,
-		cb.CameraPosition,
-		cb.InverseViewProjection);
+	    // Set up the payload for the ray
+	    // This initializes the struct to all zeros
+        RayPayload payload = (RayPayload) 0;
+        payload.color = float3(1.0f, 1.0f, 1.0f);
+        payload.maxRecursion = 0;
+        payload.raysPerPixel = i;
 
-	// Set up the payload for the ray
-	// This initializes the struct to all zeros
-    RayPayload payload = (RayPayload) 0;
+	    // Perform the ray trace for this ray
+        RaytracingAccelerationStructure SceneTLAS = ResourceDescriptorHeap[SceneTLASDescriptorIndex];
+        TraceRay(
+		    SceneTLAS,
+		    RAY_FLAG_NONE,
+		    0xFF,
+		    0,
+		    0,
+		    0,
+		    ray,
+		    payload);
+        
+        totalColor += payload.color;
+    }
 
-	// Perform the ray trace for this ray
-    RaytracingAccelerationStructure SceneTLAS = ResourceDescriptorHeap[SceneTLASDescriptorIndex];
-    TraceRay(
-		SceneTLAS,
-		RAY_FLAG_NONE,
-		0xFF,
-		0,
-		0,
-		0,
-		ray,
-		payload);
-	
 	// Grab the output UAV
     RWTexture2D<float4> OutputColor =
 		ResourceDescriptorHeap[OutputUAVDescriptorIndex];
 
 	// Set the final color of the buffer
-    OutputColor[rayIndices] = float4(pow(payload.color, 1.0f / 2.2f), 1.0f);
+    OutputColor[rayIndices] = float4(pow(totalColor / cb.RaysPerPixel, 1.0f / 2.2f), 1.0f);
 }
 
 
@@ -163,9 +227,16 @@ void RayGen()
 [shader("miss")]
 void Miss(inout RayPayload payload)
 {
-	// Nothing was hit, so return black for now.
-	// Ideally this is where we would do skybox stuff!
-    payload.color = float3(0.4f, 0.6f, 0.75f);
+	// Hemispheric gradient
+    float3 upColor = float3(0.3f, 0.5f, 0.95f);
+    float3 downColor = float3(1, 1, 1);
+
+	// Interpolate based on the direction of the ray
+    float interpolation = dot(normalize(WorldRayDirection()), float3(0, 1, 0)) * 0.5f + 0.5f;
+    float3 skyColor = lerp(downColor, upColor, interpolation);
+	
+	// Alter the payload color by the sky color
+    payload.color *= skyColor;
 }
 
 
@@ -173,19 +244,50 @@ void Miss(inout RayPayload payload)
 [shader("closesthit")]
 void ClosestHit(inout RayPayload payload, BuiltInTriangleIntersectionAttributes hitAttributes)
 {
-	// Get the interpolated vertex data
-	//Vertex interpolatedVert = InterpolateVertices(
-	//	PrimitiveIndex(), 
-	//	hitAttributes.barycentrics);
-
-	// Use the resulting data to set the final color
-	// Note: Here is where we would do actual shading!
-	//payload.color = interpolatedVert.normal;
-	
-	// Get the data for this entity
-    StructuredBuffer<EntityData> entityDataBuffer =
-		ResourceDescriptorHeap[EntityDataDescriptorIndex];
-    EntityData thisEntity = entityDataBuffer[InstanceIndex()];
-
-    payload.color = thisEntity.Color.rgb;
+    // If we have hit max recursion, return black
+    if (payload.maxRecursion == 10)
+    {
+        payload.color = float3(0.0f, 0.0f, 0.0f);
+        return;
+    }
+    
+    // Get the data for the current entity
+    StructuredBuffer<EntityData> entityData = ResourceDescriptorHeap[EntityDataDescriptorIndex];
+    EntityData thisEntity = entityData[InstanceIndex()];
+    
+    // Since we are in this shader, we must have hit something
+    payload.color *= thisEntity.Color.rgb;
+    
+    // Get geometry hit data
+    Vertex hit = InterpolateVertices(PrimitiveIndex(), hitAttributes.barycentrics);
+    
+    // Convert to world coordinates
+    float3 normalWorld = normalize(mul(hit.normal, (float3x3) ObjectToWorld4x3()));
+    
+    // Get the UV and use it for randomness calculations
+    float2 pixelUV = (float2) DispatchRaysIndex().xy / DispatchRaysDimensions().xy;
+    float2 rng = rand2(pixelUV * (payload.maxRecursion + 1) + payload.raysPerPixel + RayTCurrent());
+    
+    // Interpolate between reflection and random bounce based on roughness
+    float3 reflection = reflect(WorldRayDirection(), normalWorld);
+    float3 randomBounce = RandomCosineWeightedHemisphere(rand(rng), rand(rng.yx), normalWorld);
+    float3 direction = normalize(lerp(reflection, randomBounce, thisEntity.Color.a));
+    
+    // Create a new ray
+    RayDesc ray;
+    ray.Origin = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    ray.Direction = direction;
+    ray.TMin = 0.0001f;
+    ray.TMax = 1000.0f;
+    
+    // Recursive ray trace
+    payload.maxRecursion++;
+    
+    RaytracingAccelerationStructure SceneTLAS = ResourceDescriptorHeap[SceneTLASDescriptorIndex];
+    TraceRay(
+        SceneTLAS,
+        RAY_FLAG_NONE,
+        0xFF, 0, 0, 0, // Mask and offsets
+        ray,
+        payload);
 }

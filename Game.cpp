@@ -29,7 +29,7 @@ Game::Game()
 		FixPath(L"RayTracing.cso"));
 
 	// Create the main camera
-	XMFLOAT3 initialPos = XMFLOAT3(0.0f, 0.0f, -15.0f);
+	XMFLOAT3 initialPos = XMFLOAT3(0.0f, 5.0f, -15.0f);
 	XMFLOAT3 startOrientation = XMFLOAT3(0.0f, 0.0f, 0.0f);
 	mainCamera = std::make_shared<Camera>(
 		Window::AspectRatio(),

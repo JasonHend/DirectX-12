@@ -39,7 +39,7 @@ struct RayTracingSceneData
 {
 	DirectX::XMFLOAT4X4 InverseViewProjection;
 	DirectX::XMFLOAT3 CameraPosition;
-	float pad;
+	unsigned int RaysPerPixel;
 };
 
 // Per-entity information (geom, material, etc.)

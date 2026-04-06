@@ -216,7 +216,8 @@ void RayTracing::CreateRaytracingPipelineState(std::wstring raytracingShaderLibr
 
 	// === Shader config (payload) ===
 	D3D12_RAYTRACING_SHADER_CONFIG shaderConfigDesc = {};
-	shaderConfigDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT3);	// Assuming a float3 color for now
+	shaderConfigDesc.MaxPayloadSizeInBytes = sizeof(DirectX::XMFLOAT3)
+		+ (2 * sizeof(unsigned int));	// Payload incudes float3 and an unsigned integer
 	shaderConfigDesc.MaxAttributeSizeInBytes = sizeof(DirectX::XMFLOAT2); // Assuming a float2 for barycentric coords for now
 
 	D3D12_STATE_SUBOBJECT shaderConfigSubObj = {};
@@ -768,6 +769,7 @@ void RayTracing::Raytrace(std::shared_ptr<Camera> camera, Microsoft::WRL::ComPtr
 	// Grab and fill a constant buffer
 	RayTracingSceneData sceneData = {};
 	sceneData.CameraPosition = camera->GetTransform()->GetPosition();
+	sceneData.RaysPerPixel = 5;
 
 	DirectX::XMFLOAT4X4 view = camera->GetViewMatrix();
 	DirectX::XMFLOAT4X4 proj = camera->GetProjectionMatrix();
