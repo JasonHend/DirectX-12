@@ -40,8 +40,18 @@ struct EntityData
     float4 Color;
     uint VertexBufferDescriptorIndex;
     uint IndexBufferDescriptorIndex;
-    float pad[2];
+    
+    uint AlbedoIndex;
+    uint NormalMapIndex;
+    uint RoughnessIndex;
+    uint MetalnessIndex;
+    
+    float Roughness;
+    float Metalness;
 };
+
+// === Samplers ===
+SamplerState BasicSampler : register(s0);
 
 
 // === Constant buffers ===
@@ -164,6 +174,21 @@ float3 RandomCosineWeightedHemisphere(float u0, float u1, float3 unitNormal)
     return float3(x, y, z);
 }
 
+// Normal mapping function
+float3 NormalMapping(Texture2D normalTexture, SamplerState basicSampler, float2 uv, float3 normal, float3 tangent)
+{
+    // Sample from normal map
+    float3 unpackedNormal = normalTexture.SampleLevel(basicSampler, uv, 0).rgb * 2.0f - 1.0f;
+
+    // Create TBN matrix
+    float3 N = normal;
+    float3 T = normalize(tangent - N * dot(tangent, N));
+    float3 B = cross(T, N);
+    float3x3 TBN = float3x3(T, B, N);
+
+    // Adjust normals using TBN
+    return normalize(mul(unpackedNormal, TBN));
+}
 
 // === Shaders ===
 
@@ -229,7 +254,7 @@ void Miss(inout RayPayload payload)
 {
 	// Hemispheric gradient
     float3 upColor = float3(0.3f, 0.5f, 0.95f);
-    float3 downColor = float3(1, 1, 1);
+    float3 downColor = float3(0.7f, 0.7f, 0.7f);
 
 	// Interpolate based on the direction of the ray
     float interpolation = dot(normalize(WorldRayDirection()), float3(0, 1, 0)) * 0.5f + 0.5f;
@@ -255,11 +280,21 @@ void ClosestHit(inout RayPayload payload, BuiltInTriangleIntersectionAttributes 
     StructuredBuffer<EntityData> entityData = ResourceDescriptorHeap[EntityDataDescriptorIndex];
     EntityData thisEntity = entityData[InstanceIndex()];
     
-    // Since we are in this shader, we must have hit something
-    payload.color *= thisEntity.Color.rgb;
-    
     // Get geometry hit data
     Vertex hit = InterpolateVertices(PrimitiveIndex(), hitAttributes.barycentrics);
+    
+    // Grab texture data
+    Texture2D AlbedoTexture = ResourceDescriptorHeap[thisEntity.AlbedoIndex];
+    Texture2D NormalMap = ResourceDescriptorHeap[thisEntity.NormalMapIndex];
+    
+    // Since we are in this shader, we must have hit something
+    payload.color *= AlbedoTexture.SampleLevel(BasicSampler, hit.uv, 0).rgb;
+    
+    // Adjust hit normals and apply normal mapping
+    hit.normal = normalize(hit.normal);
+    hit.tangent = normalize(hit.tangent);
+    
+    hit.normal = NormalMapping(NormalMap, BasicSampler, hit.uv, hit.normal, hit.tangent);
     
     // Convert to world coordinates
     float3 normalWorld = normalize(mul(hit.normal, (float3x3) ObjectToWorld4x3()));

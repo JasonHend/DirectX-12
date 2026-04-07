@@ -80,6 +80,21 @@ void Game::CreateGeometry()
 	unsigned int rockMetal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/metal.png").c_str());
 	unsigned int rockRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/roughness.png").c_str());
 
+	unsigned int teddyAlbedo = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Teddy/albedo.png").c_str());
+	unsigned int teddyNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Teddy/normal.png").c_str());
+	unsigned int teddyMetal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Teddy/metal.png").c_str());
+	unsigned int teddyRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Teddy/roughness.png").c_str());
+
+	unsigned int snowAlbedo = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Snow/albedo.png").c_str());
+	unsigned int snowNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Snow/normal.png").c_str());
+	unsigned int snowMetal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Snow/metal.png").c_str());
+	unsigned int snowRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Snow/roughness.png").c_str());
+
+	unsigned int rustAlbedo = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rust/albedo.png").c_str());
+	unsigned int rustNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rust/normal.png").c_str());
+	unsigned int rustMetal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rust/metal.png").c_str());
+	unsigned int rustRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rust/roughness.png").c_str());
+
 	// Create Materials
 	std::shared_ptr<Material> rockMaterial = std::make_shared<Material>(
 		DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f),
@@ -101,6 +116,36 @@ void Game::CreateGeometry()
 		rockMetal,
 		rockRoughness);
 
+	std::shared_ptr<Material> teddyMaterial = std::make_shared<Material>(
+		DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f),
+		DirectX::XMFLOAT2(1.0f, 1.0f),
+		DirectX::XMFLOAT2(0.0f, 0.0f),
+		pipelineState,
+		teddyAlbedo,
+		teddyNormal,
+		teddyMetal,
+		teddyRoughness);
+
+	std::shared_ptr<Material> snowMaterial = std::make_shared<Material>(
+		DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f),
+		DirectX::XMFLOAT2(1.0f, 1.0f),
+		DirectX::XMFLOAT2(0.0f, 0.0f),
+		pipelineState,
+		snowAlbedo,
+		snowNormal,
+		snowMetal,
+		snowRoughness);
+
+	std::shared_ptr<Material> rustMaterial = std::make_shared<Material>(
+		DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f),
+		DirectX::XMFLOAT2(1.0f, 1.0f),
+		DirectX::XMFLOAT2(0.0f, 0.0f),
+		pipelineState,
+		rustAlbedo,
+		rustNormal,
+		rustMetal,
+		rustRoughness);
+
 	// Create entities
 	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere, rockMaterial);
 	std::shared_ptr<GameEntity> helixEntity = std::make_shared<GameEntity>(helix, rockMaterial);
@@ -119,25 +164,29 @@ void Game::CreateGeometry()
 	entities.push_back(floorEntity);
 
 	// Create moving sphere entites
-	for (unsigned int i = 0; i < 20; i++)
+	for (unsigned int i = 0; i < 30; i++)
 	{
-		std::shared_ptr<Material> coloredMaterial = std::make_shared<Material>(
-			DirectX::XMFLOAT3(float(rand()) / RAND_MAX, float(rand()) / RAND_MAX, float(rand()) / RAND_MAX),
-			DirectX::XMFLOAT2(1.0f, 1.0f),
-			DirectX::XMFLOAT2(0.0f, 0.0f),
-			pipelineState,
-			rockAlbedo,
-			rockNormal,
-			rockMetal,
-			rockRoughness);
+		std::shared_ptr<GameEntity> randEntity;
+		switch (i % 3)
+		{
+		case 0:
+			randEntity = std::make_shared<GameEntity>(sphere, teddyMaterial);
+			break;
+			
+		case 1:
+			randEntity = std::make_shared<GameEntity>(sphere, snowMaterial);
+			break;
 
-		std::shared_ptr<GameEntity> coloredSphere = std::make_shared<GameEntity>(sphere, coloredMaterial);
+		case 2:
+			randEntity = std::make_shared<GameEntity>(sphere, rustMaterial);
+			break;
+		}
 
-		float scale = float(rand() % 2);
+		float scale = float(rand() % 2) + 0.5f;
 
-		coloredSphere->GetTransform()->SetScale(scale, scale, scale);
-		coloredSphere->GetTransform()->SetPosition(float(rand() % 20) - 10.0f, 1.0f, float(rand() % 20) - 10.0f);
-		entities.push_back(coloredSphere);
+		randEntity->GetTransform()->SetScale(scale, scale, scale);
+		randEntity->GetTransform()->SetPosition(float(rand() % 20) - 10.0f, 1.0f, float(rand() % 20) - 10.0f);
+		entities.push_back(randEntity);
 	}
 
 	// Create buffer data for all entities
@@ -419,10 +468,6 @@ void Game::Update(float deltaTime, float totalTime)
 {
 	// Update main camera
 	mainCamera->Update(deltaTime);
-
-	// Update the transforms of some entities
-	// Sphere will move up and down
-	entities[0]->GetTransform()->SetPosition(0.0f, float(sin(deltaTime)), 0.0f);
 
 	// Rotate helix and torus
 	entities[1]->GetTransform()->Rotate(0.3f * deltaTime, 0.0f, 0.0f);

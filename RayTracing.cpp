@@ -104,14 +104,28 @@ void RayTracing::CreateRaytracingRootSignatures()
 			rootParams[0].Constants.ShaderRegister = 0;
 		}
 
+		// Create a sampler description
+		D3D12_STATIC_SAMPLER_DESC sampDesc = {};
+		sampDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sampDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sampDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sampDesc.Filter = D3D12_FILTER_ANISOTROPIC;
+		sampDesc.MaxAnisotropy = 16;
+		sampDesc.MaxLOD = D3D12_FLOAT32_MAX;
+		sampDesc.ShaderRegister = 0;
+		sampDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+		// All samplers
+		D3D12_STATIC_SAMPLER_DESC samplers[] = { sampDesc };
+
 		// Create the global root signature
 		Microsoft::WRL::ComPtr<ID3DBlob> blob;
 		Microsoft::WRL::ComPtr<ID3DBlob> errors;
 		D3D12_ROOT_SIGNATURE_DESC globalRootSigDesc = {};
 		globalRootSigDesc.NumParameters = ARRAYSIZE(rootParams);
 		globalRootSigDesc.pParameters = rootParams;
-		globalRootSigDesc.NumStaticSamplers = 0;
-		globalRootSigDesc.pStaticSamplers = 0;
+		globalRootSigDesc.NumStaticSamplers = ARRAYSIZE(samplers);
+		globalRootSigDesc.pStaticSamplers = samplers;
 		globalRootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
 
 		D3D12SerializeRootSignature(&globalRootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1, blob.GetAddressOf(), errors.GetAddressOf());
@@ -437,6 +451,8 @@ void RayTracing::CreateEntityDataBuffer(std::vector<std::shared_ptr<GameEntity>>
 		data.Color = DirectX::XMFLOAT4(c.x, c.y, c.z, 1);
 		data.IndexBufferDescriptorIndex = Graphics::GetDescriptorIndex(scene[i]->GetMesh()->GetRayTracingData().IndexBufferSRV);
 		data.VertexBufferDescriptorIndex = Graphics::GetDescriptorIndex(scene[i]->GetMesh()->GetRayTracingData().VertexBufferSRV);
+		data.AlbdeoIndex = scene[i]->GetMaterial()->GetAlbedo();
+		data.NormalMapIndex = scene[i]->GetMaterial()->GetNormalMap();
 
 		entityData.push_back(data);
 	}
