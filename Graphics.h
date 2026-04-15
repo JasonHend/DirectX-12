@@ -74,6 +74,15 @@ namespace Graphics
 	
 	unsigned int LoadTexture(const wchar_t* file, bool generateMips = true);
 
+	// Cubemap loader
+	unsigned int CreateCubemap(
+		const wchar_t* right,
+		const wchar_t* left,
+		const wchar_t* up,
+		const wchar_t* down,
+		const wchar_t* front,
+		const wchar_t* back);
+
 	// Command list and synchronization
 	void ResetAllocatorAndCommandList();
 	void CloseAndExecuteCommandList();
