@@ -96,6 +96,16 @@ void Game::CreateGeometry()
 	entities.push_back(sphereEntity);
 	entities.push_back(helixEntity);
 	entities.push_back(torusEntity);
+
+	// Create the sky
+	sky = std::make_shared<Sky>(
+		FixPath(L"../../Assets/Textures/Skybox/up.png").c_str(),
+		FixPath(L"../../Assets/Textures/Skybox/left.png").c_str(),
+		FixPath(L"../../Assets/Textures/Skybox/right.png").c_str(),
+		FixPath(L"../../Assets/Textures/Skybox/down.png").c_str(),
+		FixPath(L"../../Assets/Textures/Skybox/front.png").c_str(),
+		FixPath(L"../../Assets/Textures/Skybox/back.png").c_str(),
+		cube);
 }
 
 
@@ -411,6 +421,9 @@ void Game::Draw(float deltaTime, float totalTime)
 			0, 0); // No scissor rects
 	}
 
+	// Set up sky data
+	SkyData skyInts{};
+
 	// Rendering here!
 	{
 		// Set overall pipeline state
@@ -478,6 +491,8 @@ void Game::Draw(float deltaTime, float totalTime)
 			Graphics::CommandList->DrawIndexedInstanced(e->GetMesh()->GetIndexCount(), 1, 0, 0, 0);
 		}
 	}
+
+	sky->Draw(mainCamera);
 
 	// Present
 	{

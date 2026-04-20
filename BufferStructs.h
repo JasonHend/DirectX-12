@@ -24,3 +24,10 @@ struct PixelShaderExternalData
 	unsigned int lightCount;
 	Light lights[3];
 };
+
+struct SkyData
+{
+	unsigned int vsVertexBufferIndex;
+	unsigned int vsCBIndex;
+	unsigned int psSkyboxIndex;
+};

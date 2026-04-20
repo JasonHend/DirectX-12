@@ -7,6 +7,7 @@
 #include "GameEntity.h"
 #include "Mesh.h"
 #include "Lights.h"
+#include "Sky.h"
 
 class Game
 {
@@ -54,6 +55,9 @@ private:
 
 	// Entities
 	std::vector<std::shared_ptr<GameEntity>> entities;
+
+	// Sky
+	std::shared_ptr<Sky> sky;
 
 	// Lights
 	Light directionalLight;

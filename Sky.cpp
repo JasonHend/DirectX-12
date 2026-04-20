@@ -1,35 +1,23 @@
 #include "Sky.h"
-#include <d3d11.h>
+#include <d3d12.h>
 #include "Graphics.h"
 #include "WICTextureLoader.h"
+#include "DDSTextureLoader.h"
+#include "PathHelpers.h"
+#include "BufferStructs.h"
 
-Sky::Sky(std::shared_ptr<Mesh> mesh, Microsoft::WRL::ComPtr<ID3D11SamplerState> samplerState, std::shared_ptr<SimplePixelShader> pixelShader, std::shared_ptr<SimpleVertexShader> vertexShader,
-	const wchar_t* right,
-	const wchar_t* left,
-	const wchar_t* up,
-	const wchar_t* down,
-	const wchar_t* front,
-	const wchar_t* back)
+// Include compiler help for shaders
+#pragma comment(lib, "d3dcompiler.lib")
+#include <d3dcompiler.h>
+
+Sky::Sky(const wchar_t* right, const wchar_t* left, const wchar_t* up, const wchar_t* down, const wchar_t* front, const wchar_t* back, std::shared_ptr<Mesh> mesh) :
+	mesh(mesh)
 {
-	this->mesh = mesh;
-	this->samplerState = samplerState;
-	this->pixelShader = pixelShader;
-	this->vertexShader = vertexShader;
-
-	// Rasterizer state
-	D3D11_RASTERIZER_DESC rasterizerDesc = {};
-	rasterizerDesc.FillMode = D3D11_FILL_SOLID;
-	rasterizerDesc.CullMode = D3D11_CULL_FRONT;
-	Graphics::Device.Get()->CreateRasterizerState(&rasterizerDesc, rasterizerState.GetAddressOf());
-
-	// Depth stencil state
-	D3D11_DEPTH_STENCIL_DESC depthDesc = {};
-	depthDesc.DepthEnable = true;
-	depthDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
-	Graphics::Device.Get()->CreateDepthStencilState(&depthDesc, depthState.GetAddressOf());
+	// Initialize rendering
+	InitializeRendering();
 
 	// Create the cubemap
-	SRV = CreateCubemap(right, left, up, down, front, back);
+	skyboxDescriptor = Graphics::CreateCubemap(right, left, up, down, front, back);
 }
 
 Sky::~Sky()
@@ -37,114 +25,147 @@ Sky::~Sky()
 	// Should remain empty with no raw pointers
 }
 
-void Sky::Draw(Camera currentCamera)
+void Sky::Draw(std::shared_ptr<Camera> currentCamera)
 {
-	// Change the render states
-	Graphics::Context->RSSetState(rasterizerState.Get());
-	Graphics::Context->OMSetDepthStencilState(depthState.Get(), 0);
+	// Set pipeline
+	Graphics::CommandList->SetPipelineState(pipelineState.Get());
+	Graphics::CommandList->SetGraphicsRootSignature(rootSignature.Get());
 
-	// Prepare sky shaders
-	vertexShader->SetShader();
-	vertexShader->SetMatrix4x4("m4View", currentCamera.GetViewMatrix());
-	vertexShader->SetMatrix4x4("m4Projection", currentCamera.GetProjectionMatrix());
+	// Basic draw
+	SkyDrawResources drawData{};
+	drawData.psSkyboxIndex = skyboxDescriptor;
+	drawData.vsVertexBufferIndex = Graphics::GetDescriptorIndex(mesh->GetVertexBufferDescriptorHandle());
 
-	vertexShader->CopyAllBufferData();
-
-	pixelShader->SetShader();
-	pixelShader->SetShaderResourceView("SkyTexture", SRV);
-	pixelShader->SetSamplerState("BasicSampler", samplerState);
-
-	mesh->Draw();
-
-	// Reset rasterizer state
-	Graphics::Context->RSSetState(0);
-	Graphics::Context->OMSetDepthStencilState(0, 0);
-}
-
-// --------------------------------------------------------
-// Loads six individual textures (the six faces of a cube map), then
-// creates a blank cube map and copies each of the six textures to
-// another face.  Afterwards, creates a shader resource view for
-// the cube map and cleans up all of the temporary resources.
-// --------------------------------------------------------
-Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Sky::CreateCubemap(
-	const wchar_t* right,
-	const wchar_t* left,
-	const wchar_t* up,
-	const wchar_t* down,
-	const wchar_t* front,
-	const wchar_t* back)
-{
-	// Load the 6 textures into an array.
-	// - We need references to the TEXTURES, not SHADER RESOURCE VIEWS!
-	// - Explicitly NOT generating mipmaps, as we don't need them for the sky!
-	// - Order matters here!  +X, -X, +Y, -Y, +Z, -Z
-	Microsoft::WRL::ComPtr<ID3D11Texture2D> textures[6] = {};
-	DirectX::CreateWICTextureFromFile(Graphics::Device.Get(), right, (ID3D11Resource**)textures[0].GetAddressOf(), 0);
-	DirectX::CreateWICTextureFromFile(Graphics::Device.Get(), left, (ID3D11Resource**)textures[1].GetAddressOf(), 0);
-	DirectX::CreateWICTextureFromFile(Graphics::Device.Get(), up, (ID3D11Resource**)textures[2].GetAddressOf(), 0);
-	DirectX::CreateWICTextureFromFile(Graphics::Device.Get(), down, (ID3D11Resource**)textures[3].GetAddressOf(), 0);
-	DirectX::CreateWICTextureFromFile(Graphics::Device.Get(), front, (ID3D11Resource**)textures[4].GetAddressOf(), 0);
-	DirectX::CreateWICTextureFromFile(Graphics::Device.Get(), back, (ID3D11Resource**)textures[5].GetAddressOf(), 0);
-
-	// We'll assume all of the textures are the same color format and resolution,
-	// so get the description of the first texture
-	D3D11_TEXTURE2D_DESC faceDesc = {};
-	textures[0]->GetDesc(&faceDesc);
-
-	// Describe the resource for the cube map, which is simply 
-	// a "texture 2d array" with the TEXTURECUBE flag set.  
-	// This is a special GPU resource format, NOT just a 
-	// C++ array of textures!!!
-	D3D11_TEXTURE2D_DESC cubeDesc = {};
-	cubeDesc.ArraySize = 6;            // Cube map!
-	cubeDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE; // We'll be using as a texture in a shader
-	cubeDesc.CPUAccessFlags = 0;       // No read back
-	cubeDesc.Format = faceDesc.Format; // Match the loaded texture's color format
-	cubeDesc.Width = faceDesc.Width;   // Match the size
-	cubeDesc.Height = faceDesc.Height; // Match the size
-	cubeDesc.MipLevels = 1;            // Only need 1
-	cubeDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE; // This should be treated as a CUBE, not 6 separate textures
-	cubeDesc.Usage = D3D11_USAGE_DEFAULT; // Standard usage
-	cubeDesc.SampleDesc.Count = 1;
-	cubeDesc.SampleDesc.Quality = 0;
-
-	// Create the final texture resource to hold the cube map
-	Microsoft::WRL::ComPtr<ID3D11Texture2D> cubeMapTexture;
-	Graphics::Device->CreateTexture2D(&cubeDesc, 0, cubeMapTexture.GetAddressOf());
-
-	// Loop through the individual face textures and copy them,
-	// one at a time, to the cube map texure
-	for (int i = 0; i < 6; i++)
+	// Per Frame
 	{
-		// Calculate the subresource position to copy into
-		unsigned int subresource = D3D11CalcSubresource(
-			0,  // Which mip (zero, since there's only one)
-			i,  // Which array element?
-			1); // How many mip levels are in the texture?
+		VertexShaderExternalData vsData{};
+		vsData.m4View = currentCamera->GetViewMatrix();
+		vsData.m4Projection = currentCamera->GetProjectionMatrix();
 
-		// Copy from one resource (texture) to another
-		Graphics::Context->CopySubresourceRegion(
-			cubeMapTexture.Get(),  // Destination resource
-			subresource,           // Dest subresource index (one of the array elements)
-			0, 0, 0,               // XYZ location of copy
-			textures[i].Get(),     // Source resource
-			0,                     // Source subresource index (we're assuming there's only one)
-			0);                    // Source subresource "box" of data to copy (zero means the whole thing)
+		D3D12_GPU_DESCRIPTOR_HANDLE cbHandleVS = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
+			(void*)(&vsData), sizeof(VertexShaderExternalData));
+
+		drawData.vsCBIndex = Graphics::GetDescriptorIndex(cbHandleVS);
 	}
 
-	// At this point, all of the faces have been copied into the 
-	// cube map texture, so we can describe a shader resource view for it
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = cubeDesc.Format;         // Same format as texture
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE; // Treat this as a cube!
-	srvDesc.TextureCube.MipLevels = 1;        // Only need access to 1 mip
-	srvDesc.TextureCube.MostDetailedMip = 0;  // Index of the first mip we want to see
+	// Copy draw constants
+	Graphics::CommandList->SetGraphicsRoot32BitConstants(
+		0,
+		sizeof(SkyDrawResources) / sizeof(unsigned int),
+		&drawData,
+		0);
 
-	// Make the SRV
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cubeSRV;
-	Graphics::Device->CreateShaderResourceView(cubeMapTexture.Get(), &srvDesc, cubeSRV.GetAddressOf());
+	// Grab the mesh and its buffer views
+	D3D12_INDEX_BUFFER_VIEW ibv = mesh->GetIndexBufferView();
 
-	// Send back the SRV, which is what we need for our shaders
-	return cubeSRV;
+	Graphics::CommandList->IASetIndexBuffer(&ibv);
+
+	// Finally draw
+	Graphics::CommandList->DrawIndexedInstanced((UINT)mesh->GetIndexCount(), 1, 0, 0, 0);
+}
+
+// Initializes the pipeline and rendering state
+void Sky::InitializeRendering()
+{
+	// Set up root signature
+	{
+		D3D12_ROOT_PARAMETER rootParams[1] = {};
+
+		// Root parameter for descriptors
+		rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParams[0].Constants.Num32BitValues = sizeof(SkyDrawResources) / sizeof(unsigned int);
+		rootParams[0].Constants.RegisterSpace = 0;
+		rootParams[0].Constants.ShaderRegister = 0;
+
+		// Create the static sampler that will render the skybox
+		D3D12_STATIC_SAMPLER_DESC anisoWrap = {};
+		anisoWrap.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		anisoWrap.Filter = D3D12_FILTER_ANISOTROPIC;
+		anisoWrap.MaxAnisotropy = 16;
+		anisoWrap.MaxLOD = D3D12_FLOAT32_MAX;
+		anisoWrap.ShaderRegister = 0;
+		anisoWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+		D3D12_STATIC_SAMPLER_DESC samplers[] = { anisoWrap };
+
+		// Serialize the root signature
+		D3D12_ROOT_SIGNATURE_DESC rootSig = {};
+		rootSig.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
+		rootSig.NumParameters = ARRAYSIZE(rootParams);
+		rootSig.pParameters = rootParams;
+		rootSig.NumStaticSamplers = ARRAYSIZE(samplers);
+		rootSig.pStaticSamplers = samplers;
+
+		// Create the blob for serialized root sig and actually serialize it
+		ID3DBlob* serializedRootSig = 0;
+		ID3DBlob* errors = 0;
+
+		D3D12SerializeRootSignature(
+			&rootSig,
+			D3D_ROOT_SIGNATURE_VERSION_1,
+			&serializedRootSig,
+			&errors);
+
+		// Error check
+		if (errors != 0)
+		{
+			OutputDebugString((wchar_t*)errors->GetBufferPointer());
+		}
+
+		// Create
+		Graphics::Device->CreateRootSignature(
+			0,
+			serializedRootSig->GetBufferPointer(),
+			serializedRootSig->GetBufferSize(),
+			IID_PPV_ARGS(rootSignature.GetAddressOf()));
+	}
+
+	// Pipeline state (pso)
+	{
+		// Load sky shaders
+		Microsoft::WRL::ComPtr<ID3DBlob> vsByteCode;
+		Microsoft::WRL::ComPtr<ID3DBlob> psByteCode;
+		D3DReadFileToBlob(FixPath(L"SkyVS.cso").c_str(), vsByteCode.GetAddressOf());
+		D3DReadFileToBlob(FixPath(L"SkyPS.cso").c_str(), psByteCode.GetAddressOf());
+
+		// Create object
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+
+		// Grab root sig and do assembler stage
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		psoDesc.pRootSignature = rootSignature.Get();
+
+		// -- Shaders (VS/PS) ---
+		psoDesc.VS.pShaderBytecode = vsByteCode->GetBufferPointer();
+		psoDesc.VS.BytecodeLength = vsByteCode->GetBufferSize();
+		psoDesc.PS.pShaderBytecode = psByteCode->GetBufferPointer();
+		psoDesc.PS.BytecodeLength = psByteCode->GetBufferSize();
+		// -- Render targets ---
+		psoDesc.NumRenderTargets = 1;
+		psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		psoDesc.SampleDesc.Count = 1;
+		psoDesc.SampleDesc.Quality = 0;
+		// -- States ---
+		psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;
+		psoDesc.RasterizerState.DepthClipEnable = true;
+		psoDesc.DepthStencilState.DepthEnable = true;
+		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+		psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+		psoDesc.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+		psoDesc.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+		psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+		psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask =
+			D3D12_COLOR_WRITE_ENABLE_ALL;
+		// -- Misc ---
+		psoDesc.SampleMask = 0xffffffff;
+		// Create the pipe state object
+		Graphics::Device->CreateGraphicsPipelineState(
+			&psoDesc,
+			IID_PPV_ARGS(pipelineState.GetAddressOf()));
+	}
 }

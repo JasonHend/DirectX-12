@@ -64,6 +64,9 @@ namespace Graphics
 	void ResizeBuffers(unsigned int width, unsigned int height);
 	void AdvanceSwapChainIndex();
 
+	// Helper for accessing a certain descriptor index
+	unsigned int GetDescriptorIndex(D3D12_GPU_DESCRIPTOR_HANDLE handle);
+
 	// Resource creation and utiliziation
 	Microsoft::WRL::ComPtr<ID3D12Resource> CreateStaticBuffer(
 		size_t dataStride, size_t dataCount, void* data);
@@ -82,6 +85,11 @@ namespace Graphics
 		const wchar_t* down,
 		const wchar_t* front,
 		const wchar_t* back);
+
+	// Descriptor heap
+	void ReserveDescriptorHeapSlot(
+		D3D12_CPU_DESCRIPTOR_HANDLE* reservedCPUHandle,
+		D3D12_GPU_DESCRIPTOR_HANDLE* reservedGPUHandle);
 
 	// Command list and synchronization
 	void ResetAllocatorAndCommandList();
