@@ -25,9 +25,8 @@ struct PixelShaderExternalData
 	Light lights[3];
 };
 
-struct SkyData
+struct VertexShaderFrameData
 {
-	unsigned int vsVertexBufferIndex;
-	unsigned int vsCBIndex;
-	unsigned int psSkyboxIndex;
+	DirectX::XMFLOAT4X4 m4View;
+	DirectX::XMFLOAT4X4 m4Projection;
 };

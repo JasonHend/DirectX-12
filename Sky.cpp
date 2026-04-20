@@ -38,12 +38,12 @@ void Sky::Draw(std::shared_ptr<Camera> currentCamera)
 
 	// Per Frame
 	{
-		VertexShaderExternalData vsData{};
+		VertexShaderFrameData vsData{};
 		vsData.m4View = currentCamera->GetViewMatrix();
 		vsData.m4Projection = currentCamera->GetProjectionMatrix();
 
 		D3D12_GPU_DESCRIPTOR_HANDLE cbHandleVS = Graphics::FillNextConstantBufferAndGetGPUDescriptorHandle(
-			(void*)(&vsData), sizeof(VertexShaderExternalData));
+			(void*)(&vsData), sizeof(VertexShaderFrameData));
 
 		drawData.vsCBIndex = Graphics::GetDescriptorIndex(cbHandleVS);
 	}

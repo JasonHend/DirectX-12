@@ -421,9 +421,6 @@ void Game::Draw(float deltaTime, float totalTime)
 			0, 0); // No scissor rects
 	}
 
-	// Set up sky data
-	SkyData skyInts{};
-
 	// Rendering here!
 	{
 		// Set overall pipeline state
