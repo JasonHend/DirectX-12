@@ -24,3 +24,9 @@ struct PixelShaderExternalData
 	unsigned int lightCount;
 	Light lights[3];
 };
+
+struct VertexShaderFrameData
+{
+	DirectX::XMFLOAT4X4 m4View;
+	DirectX::XMFLOAT4X4 m4Projection;
+};
