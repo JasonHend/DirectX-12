@@ -72,6 +72,7 @@ void Game::CreateGeometry()
 	unsigned int rockNormal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/normal.png").c_str());
 	unsigned int rockMetal = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/metal.png").c_str());
 	unsigned int rockRoughness = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/roughness.png").c_str());
+	unsigned int rockHeight = Graphics::LoadTexture(FixPath(L"../../Assets/Textures/Rock/height.png").c_str());
 
 	// Create Materials
 	std::shared_ptr<Material> rockMaterial = std::make_shared<Material>(
@@ -82,7 +83,8 @@ void Game::CreateGeometry()
 		rockAlbedo,
 		rockNormal,
 		rockMetal,
-		rockRoughness);
+		rockRoughness,
+		rockHeight);
 
 	// Create entities
 	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere, rockMaterial);
@@ -99,9 +101,9 @@ void Game::CreateGeometry()
 
 	// Create the sky
 	sky = std::make_shared<Sky>(
-		FixPath(L"../../Assets/Textures/Skybox/up.png").c_str(),
-		FixPath(L"../../Assets/Textures/Skybox/left.png").c_str(),
 		FixPath(L"../../Assets/Textures/Skybox/right.png").c_str(),
+		FixPath(L"../../Assets/Textures/Skybox/left.png").c_str(),
+		FixPath(L"../../Assets/Textures/Skybox/up.png").c_str(),
 		FixPath(L"../../Assets/Textures/Skybox/down.png").c_str(),
 		FixPath(L"../../Assets/Textures/Skybox/front.png").c_str(),
 		FixPath(L"../../Assets/Textures/Skybox/back.png").c_str(),
@@ -121,7 +123,7 @@ void Game::CreateLights()
 	directionalLight.range = 15.0f;
 	directionalLight.position = XMFLOAT3(0.0f, 10.0f, 0.0f);
 	directionalLight.intensity = 2.0f;
-	directionalLight.color = XMFLOAT3(0.502f, 0.0f, 0.502f);
+	directionalLight.color = XMFLOAT3(0.502f, 0.502f, 0.502f);
 
 	pointLight = {};
 	pointLight.type = LIGHT_TYPE_POINT;
@@ -138,7 +140,7 @@ void Game::CreateLights()
 	spotLight.intensity = 3.0f;
 	spotLight.spotInnerAngle = 30.0f;
 	spotLight.spotOuterAngle = 58.0f;
-	spotLight.color = XMFLOAT3(0.2f, 0.7f, 0.0f);
+	spotLight.color = XMFLOAT3(0.2f, 0.7f, 0.6f);
 
 	lights.push_back(directionalLight);
 	lights.push_back(pointLight);
@@ -372,14 +374,6 @@ void Game::Update(float deltaTime, float totalTime)
 	// Update main camera
 	mainCamera->Update(deltaTime);
 
-	// Update the transforms of some entities
-	// Sphere will move up and down
-	entities[0]->GetTransform()->MoveRelative(0.0f, float(sin(deltaTime)), 0.0f);
-
-	// Rotate all entites
-	for (auto e : entities)
-		e->GetTransform()->Rotate(deltaTime / 2.0f, deltaTime, 0.0f);
-
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
 		Window::Quit();
@@ -461,6 +455,7 @@ void Game::Draw(float deltaTime, float totalTime)
 			psData.normal = material->GetNormalMap();
 			psData.metal = material->GetMetalness();
 			psData.roughness = material->GetRoughness();
+			psData.height = material->GetHeight();
 			psData.uvScale = material->GetUVScale();
 			psData.uvOffset = material->GetUVOffset();
 			psData.cameraPosition = mainCamera->GetTransform()->GetPosition();

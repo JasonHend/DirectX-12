@@ -17,7 +17,8 @@ public:
 		unsigned int albedo,
 		unsigned int normalMap,
 		unsigned int metalness,
-		unsigned int roughness
+		unsigned int roughness,
+		unsigned int height
 	);
 
 	// Getters
@@ -29,6 +30,7 @@ public:
 	unsigned int GetNormalMap();
 	unsigned int GetMetalness();
 	unsigned int GetRoughness();
+	unsigned int GetHeight();
 
 	// Setters
 	void SetColorTint(DirectX::XMFLOAT3 colorTint);
@@ -41,6 +43,7 @@ public:
 	void SetNormalMap(unsigned int normalMap);
 	void SetMetalness(unsigned int metalness);
 	void SetRoughness(unsigned int roughness);
+	void SetHeight(unsigned int height);
 
 
 private:
@@ -55,5 +58,6 @@ private:
 	unsigned int normalMap;
 	unsigned int metalness;
 	unsigned int roughness;
+	unsigned int height;
 };
 

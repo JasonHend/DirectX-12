@@ -8,7 +8,8 @@ Material::Material(
 	unsigned int albedo,
 	unsigned int normalMap,
 	unsigned int metalness,
-	unsigned int roughness) :
+	unsigned int roughness,
+	unsigned int height) :
 	colorTint(colorTint),
 	uvScale(uvScale),
 	uvOffset(uvOffset),
@@ -16,7 +17,8 @@ Material::Material(
 	albedo(albedo),
 	normalMap(normalMap),
 	metalness(metalness),
-	roughness(roughness)
+	roughness(roughness),
+	height(height)
 {
 }
 
@@ -29,6 +31,7 @@ unsigned int Material::GetAlbedo() { return albedo; }
 unsigned int Material::GetNormalMap() { return normalMap; }
 unsigned int Material::GetMetalness() { return metalness; }
 unsigned int Material::GetRoughness() { return roughness; }
+unsigned int Material::GetHeight() { return height; }
 
 void Material::SetColorTint(DirectX::XMFLOAT3 colorTint) { this->colorTint = colorTint; }
 void Material::SetColorTint(float r, float g, float b) { colorTint = DirectX::XMFLOAT3(r, g, b); }
@@ -41,4 +44,5 @@ void Material::SetAlbedo(unsigned int albedo) { this->albedo = albedo; }
 void Material::SetNormalMap(unsigned int normalMap) { this->normalMap = normalMap; }
 void Material::SetMetalness(unsigned int metalness) { this->metalness = metalness; }
 void Material::SetRoughness(unsigned int roughness) { this->roughness = roughness; }
+void Material::SetHeight(unsigned int height) { this->height = height; }
 

@@ -28,12 +28,61 @@ cbuffer ExternalData : register(b0)
 	unsigned int normal;
 	unsigned int metal;
 	unsigned int roughness;
+    unsigned int height;
+    float3 pad;
 	float2 uvScale;
 	float2 uvOffset;
 	float3 cameraPosition;
 	unsigned int lightCount;
 	Light lights[3];
 };
+
+// Parallax mapping helpers
+// From ray marching slides on my courses
+float2 GetParallaxUV(float2 uv, float3 normal, float3 tangent, float3 view, int samples, Texture2D HeightMap)
+{
+    // Calculate a TBN matrix with B negated
+    float3 N = normal;
+    float3 T = normalize(tangent - N * dot(tangent, N));
+    float3 B = cross(T, N);
+    float3x3 TBN = float3x3(T, -B, N);
+    
+    // Get the view vector in tangent space from world space
+    float3 view_TS = mul(TBN, view);
+
+    // Calculate the ray direction
+    float viewLength = length(view_TS);
+    float parallaxLength = sqrt(viewLength * viewLength - view_TS.z * view_TS.z) / view_TS.z;
+    float2 rayDir = normalize(view_TS.xy) * parallaxLength * uvScale;
+    
+    // Tracking height and position using ray marching
+    float currentHeight = 1.0f;
+    float2 currentPos = uv;
+    float stepSize = 1.0f / samples;
+    float2 uvStep = rayDir * stepSize;
+    
+    // Calculate derivatives for sampling
+    float2 dx = ddx(uv);
+    float2 dy = ddy(uv);
+    
+    // Raymarch through the object
+    for (int i = 0; i < samples; i++)
+    {
+        // Offset and grabbing height
+        currentPos -= uvStep;
+        currentHeight -= stepSize;
+        float heightAtPos = HeightMap.SampleGrad(BasicSampler, currentPos, dx, dy).r;
+        
+        // If value is below the heightmap, we have hit
+        if (currentHeight < heightAtPos)
+        {
+            break;
+        }
+    }
+    
+    // Return the position
+    return currentPos;
+}
 
 // --------------------------------------------------------
 // The entry point (main method) for our pixel shader
@@ -51,16 +100,20 @@ float4 main(VertexToPixel input) : SV_TARGET
 	Texture2D NormalTexture = ResourceDescriptorHeap[normal];
 	Texture2D MetalTexture = ResourceDescriptorHeap[metal];
 	Texture2D RoughnessTexture = ResourceDescriptorHeap[roughness];
+    Texture2D HeightMap = ResourceDescriptorHeap[height];
 
 	// Normalize tangents and normals
 	input.normal = normalize(input.normal);
 	input.tangent = normalize(input.tangent);
-
-	input.uv = input.uv * uvScale + uvOffset;
+	
+	// Calculate view
+    float3 view = cameraPosition - input.worldPosition;
 
 	// Sample normals
 	input.normal = NormalMapping(NormalTexture, BasicSampler, input.uv, input.normal, input.tangent);
 
+    input.uv = GetParallaxUV(input.uv, input.normal, input.tangent, view, 8, HeightMap);
+	
 	// Texture loading before inclusion of lights
 	float4 surfaceColor = AlbedoTexture.Sample(BasicSampler, input.uv);
 	surfaceColor.rgb = pow(surfaceColor.rgb, 2.2f);

@@ -18,6 +18,8 @@ struct PixelShaderExternalData
 	unsigned int normal;
 	unsigned int metal;
 	unsigned int roughness;
+	unsigned int height;
+	DirectX::XMFLOAT3 pad;
 	DirectX::XMFLOAT2 uvScale;
 	DirectX::XMFLOAT2 uvOffset;
 	DirectX::XMFLOAT3 cameraPosition;
