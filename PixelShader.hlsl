@@ -110,9 +110,9 @@ float4 main(VertexToPixel input) : SV_TARGET
     float3 view = cameraPosition - input.worldPosition;
 
 	// Sample normals
+    input.uv = GetParallaxUV(input.uv, input.normal, input.tangent, view, 1, HeightMap);
+	
 	input.normal = NormalMapping(NormalTexture, BasicSampler, input.uv, input.normal, input.tangent);
-
-    input.uv = GetParallaxUV(input.uv, input.normal, input.tangent, view, 8, HeightMap);
 	
 	// Texture loading before inclusion of lights
 	float4 surfaceColor = AlbedoTexture.Sample(BasicSampler, input.uv);

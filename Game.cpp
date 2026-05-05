@@ -31,7 +31,7 @@ Game::Game()
 		120.0f,
 		0.1f,
 		1000.0f,
-		20.0f,
+		10.0f,
 		10.0f);
 
 	CreateRootSigAndPipelineState();
@@ -87,7 +87,7 @@ void Game::CreateGeometry()
 		rockHeight);
 
 	// Create entities
-	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(sphere, rockMaterial);
+	std::shared_ptr<GameEntity> sphereEntity = std::make_shared<GameEntity>(cube, rockMaterial);
 	std::shared_ptr<GameEntity> helixEntity = std::make_shared<GameEntity>(helix, rockMaterial);
 	std::shared_ptr<GameEntity> torusEntity = std::make_shared<GameEntity>(torus, rockMaterial);
 
